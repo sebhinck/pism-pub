@@ -29,6 +29,7 @@ set(PISMUTIL_SRC
   base/util/Mask.cc
   base/util/VariableMetadata.cc
   base/util/PISMConfig.cc
+  base/util/ConfigJSON.cc
   base/util/PISMConfigInterface.cc
   base/util/PISMComponent.cc
   base/util/PISMTime.cc
@@ -159,6 +160,9 @@ add_library (pism
 target_link_libraries (pism ${Pism_EXTERNAL_LIBS})
 add_dependencies (pism pism_config)
 add_dependencies (pism touch_pism_revision)
+if (Pism_BUILD_JANSSON)
+  add_dependencies (pism pism_jansson)
+endif()
 
 # Bed deformation models.
 add_library(pismearth OBJECT

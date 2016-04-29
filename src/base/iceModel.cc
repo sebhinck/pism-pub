@@ -61,8 +61,8 @@ IceModel::IceModel(IceGrid::Ptr g, Context::Ptr context)
     m_output_global_attributes("PISM_GLOBAL", m_sys),
     mapping("mapping", m_sys),
     run_stats("run_stats", m_sys),
-    m_extra_bounds("time_bounds", m_config->get_string("time_dimension_name"), m_sys),
-    m_timestamp("timestamp", m_config->get_string("time_dimension_name"), m_sys) {
+    m_extra_bounds("time_bounds", m_config->get_string("time.dimension_name"), m_sys),
+    m_timestamp("timestamp", m_config->get_string("time.dimension_name"), m_sys) {
 
   m_extra_bounds.set_string("units", m_time->units_string());
 
@@ -181,13 +181,13 @@ IceModel::~IceModel() {
 */
 void IceModel::createVecs() {
 
-  const unsigned int WIDE_STENCIL = m_config->get_double("grid_max_stencil_width");
+  const unsigned int WIDE_STENCIL = m_config->get_double("grid.max_stencil_width");
 
   m_log->message(3,
                  "Allocating memory...\n");
 
   // get the list of selected calving methods:
-  std::istringstream calving_methods_list(m_config->get_string("calving_methods"));
+  std::istringstream calving_methods_list(m_config->get_string("calving.methods"));
   std::string calving_method_name;
   std::set<std::string> calving_methods;
 
@@ -207,7 +207,7 @@ void IceModel::createVecs() {
                   "J kg-1", "");
   m_grid->variables().add(m_ice_enthalpy);
 
-  if (m_config->get_boolean("do_cold_ice_methods")) {
+  if (m_config->get_boolean("energy.temperature_based")) {
     // ice temperature
     m_ice_temperature.create(m_grid, "temp", WITH_GHOSTS);
     m_ice_temperature.set_attrs("model_state",
@@ -215,7 +215,7 @@ void IceModel::createVecs() {
     m_ice_temperature.metadata().set_double("valid_min", 0.0);
     m_grid->variables().add(m_ice_temperature);
 
-    if (m_config->get_boolean("do_energy")) {
+    if (m_config->get_boolean("energy.enabled")) {
       m_ice_enthalpy.metadata().set_string("pism_intent", "diagnostic");
     } else {
       m_ice_temperature.metadata().set_string("pism_intent", "diagnostic");
@@ -223,7 +223,7 @@ void IceModel::createVecs() {
   }
 
   // age of ice but only if age will be computed
-  if (m_config->get_boolean("do_age")) {
+  if (m_config->get_boolean("age.enabled")) {
     m_ice_age.create(m_grid, "age", WITH_GHOSTS, WIDE_STENCIL);
     // PROPOSED standard_name = land_ice_age
     m_ice_age.set_attrs("model_state", "age of ice",
@@ -247,7 +247,7 @@ void IceModel::createVecs() {
   m_ice_thickness.metadata().set_double("valid_min", 0.0);
   m_grid->variables().add(m_ice_thickness);
 
-  if (m_config->get_boolean("sub_groundingline")) {
+  if (m_config->get_boolean("geometry.grounded_cell_fraction")) {
     m_gl_mask.create(m_grid, "gl_mask", WITHOUT_GHOSTS);
     m_gl_mask.set_attrs("internal",
                       "fractional grounded/floating mask (floating=0, grounded=1)",
@@ -328,7 +328,7 @@ void IceModel::createVecs() {
   vLatitude.metadata().set_double("valid_max",  90.0);
   m_grid->variables().add(vLatitude);
 
-  if (m_config->get_boolean("part_grid")) {
+  if (m_config->get_boolean("geometry.part_grid.enabled")) {
     // Href
     vHref.create(m_grid, "Href", WITH_GHOSTS);
     vHref.set_attrs("model_state", "temporary ice thickness at calving front boundary",
@@ -336,8 +336,8 @@ void IceModel::createVecs() {
     m_grid->variables().add(vHref);
   }
 
-  if (m_config->get_string("calving_methods").find("eigen_calving") != std::string::npos or
-      m_config->get_boolean("do_fracture_density")) {
+  if (m_config->get_string("calving.methods").find("eigen_calving") != std::string::npos or
+      m_config->get_boolean("fracture_density.enabled")) {
 
     m_strain_rates.create(m_grid, "strain_rates", WITH_GHOSTS,
                         2, // stencil width, has to match or exceed the "offset" in eigenCalving
@@ -354,7 +354,7 @@ void IceModel::createVecs() {
                            "second-1", "", 1);
   }
 
-  if (m_config->get_boolean("do_fracture_density")) {
+  if (m_config->get_boolean("fracture_density.enabled")) {
 
     m_deviatoric_stresses.create(m_grid, "sigma", WITH_GHOSTS,
                                2, // stencil width
@@ -376,7 +376,7 @@ void IceModel::createVecs() {
                                   "Pa", "", 2);
   }
 
-  if (m_config->get_boolean("ssa_dirichlet_bc")) {
+  if (m_config->get_boolean("stress_balance.ssa.dirichlet_bc")) {
     // bc_locations
     m_ssa_dirichlet_bc_mask.create(m_grid, "bc_mask", WITH_GHOSTS, WIDE_STENCIL);
     m_ssa_dirichlet_bc_mask.set_attrs("model_state", "Dirichlet boundary mask",
@@ -388,7 +388,7 @@ void IceModel::createVecs() {
     m_ssa_dirichlet_bc_mask.metadata().set_string("flag_meanings", "no_data bc_condition");
     m_grid->variables().add(m_ssa_dirichlet_bc_mask);
 
-    double fill_value = units::convert(m_sys, m_config->get_double("fill_value"),
+    double fill_value = units::convert(m_sys, m_config->get_double("output.fill_value"),
                                        "m year-1", "m second-1");
     // vel_bc
     m_ssa_dirichlet_bc_values.create(m_grid, "_ssa_bc", WITH_GHOSTS, WIDE_STENCIL); // u_ssa_bc and v_ssa_bc
@@ -409,14 +409,14 @@ void IceModel::createVecs() {
   }
 
   // fracture density field
-  if (m_config->get_boolean("do_fracture_density")) {
+  if (m_config->get_boolean("fracture_density.enabled")) {
     vFD.create(m_grid, "fracture_density", WITH_GHOSTS, WIDE_STENCIL);
     vFD.set_attrs("model_state", "fracture density in ice shelf", "", "");
     vFD.metadata().set_double("valid_max", 1.0);
     vFD.metadata().set_double("valid_min", 0.0);
     m_grid->variables().add(vFD);
 
-    if (m_config->get_boolean("write_fd_fields")) {
+    if (m_config->get_boolean("fracture_density.write_fields")) {
       vFG.create(m_grid, "fracture_growth_rate", WITH_GHOSTS, WIDE_STENCIL);
       vFG.set_attrs("model_state", "fracture growth rate",       "second-1", "");
       vFG.metadata().set_double("valid_min", 0.0);
@@ -600,7 +600,7 @@ void IceModel::step(bool do_mass_continuity,
 
   // Update the fractional grounded/floating mask (used by the SSA
   // stress balance and the energy code)
-  if (m_config->get_boolean("sub_groundingline")) {
+  if (m_config->get_boolean("geometry.grounded_cell_fraction")) {
     updateSurfaceElevationAndMask(); // update h and mask
     update_grounded_cell_fraction();
   }
@@ -686,7 +686,7 @@ void IceModel::step(bool do_mass_continuity,
   profiling.end("basal hydrology");
 
   //! \li update the fracture density field; see calculateFractureDensity()
-  if (m_config->get_boolean("do_fracture_density")) {
+  if (m_config->get_boolean("fracture_density.enabled")) {
     profiling.begin("fracture density");
     calculateFractureDensity();
     profiling.end("fracture density");
@@ -789,12 +789,12 @@ void IceModel::run_to(double run_end) {
 void IceModel::run() {
   const Profiling &profiling = m_ctx->profiling();
 
-  bool do_mass_conserve = m_config->get_boolean("do_mass_conserve");
-  bool do_energy = m_config->get_boolean("do_energy");
-  bool do_age = m_config->get_boolean("do_age");
-  bool do_skip = m_config->get_boolean("do_skip");
+  bool do_mass_conserve = m_config->get_boolean("geometry.update.enabled");
+  bool do_energy = m_config->get_boolean("energy.enabled");
+  bool do_age = m_config->get_boolean("age.enabled");
+  bool do_skip = m_config->get_boolean("time_stepping.skip.enabled");
 
-  int stepcount = m_config->get_boolean("count_time_steps") ? 0 : -1;
+  int stepcount = m_config->get_boolean("time_stepping.count_steps") ? 0 : -1;
 
   updateSurfaceElevationAndMask();
 

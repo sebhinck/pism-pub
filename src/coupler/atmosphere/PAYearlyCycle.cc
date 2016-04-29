@@ -36,7 +36,7 @@ YearlyCycle::YearlyCycle(IceGrid::ConstPtr g)
   : AtmosphereModel(g),
     m_air_temp_snapshot(m_sys, "air_temp_snapshot") {
 
-  m_snow_temp_july_day = m_config->get_double("snow_temp_july_day");
+  m_snow_temp_july_day = m_config->get_double("atmosphere.fausto_air_temp.summer_peak_day");
 
   // Allocate internal IceModelVecs:
   m_air_temp_mean_annual.create(m_grid, "air_temp_mean_annual", WITHOUT_GHOSTS);
@@ -101,7 +101,7 @@ void YearlyCycle::init_internal(const std::string &input_filename, bool do_regri
 void YearlyCycle::add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result) {
   result.insert("precipitation");
 
-  if (keyword == "big" || keyword == "2dbig") {
+  if (keyword == "big" || keyword == "big_2d") {
     result.insert("air_temp_mean_annual");
     result.insert("air_temp_mean_july");
     result.insert("air_temp_snapshot");
@@ -112,7 +112,7 @@ void YearlyCycle::add_vars_to_output_impl(const std::string &keyword, std::set<s
 void YearlyCycle::define_variables_impl(const std::set<std::string> &vars, const PIO &nc, IO_Type nctype) {
 
   if (set_contains(vars, "air_temp_snapshot")) {
-    std::string order = m_config->get_string("output_variable_order");
+    std::string order = m_config->get_string("output.variable_order");
     io::define_spatial_variable(m_air_temp_snapshot, *m_grid, nc, nctype, order, false);
   }
 

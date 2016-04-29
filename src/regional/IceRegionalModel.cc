@@ -105,7 +105,7 @@ void IceRegionalModel::createVecs() {
                        "time-independent basal melt rate in the no-model-strip",
                        "m s-1", "");
 
-  if (m_config->get_boolean("ssa_dirichlet_bc")) {
+  if (m_config->get_boolean("stress_balance.ssa.dirichlet_bc")) {
     // remove the bc_mask variable from the dictionary
     m_grid->variables().remove("bc_mask");
 
@@ -139,7 +139,7 @@ void IceRegionalModel::model_state_setup() {
                        units::convert(m_sys, strip_km, "km", "m"),
                        m_no_model_mask);
   } else {
-    double strip = m_config->get_double("regional_no_model_strip", "m");
+    double strip = m_config->get_double("regional.no_model_strip", "m");
     m_log->message(2,
                    "* Option -no_model_strip is not set... setting boundary strip width to %.2f km\n",
                    units::convert(m_sys, strip, "m", "km"));
@@ -157,7 +157,7 @@ void IceRegionalModel::allocate_stressbalance() {
 
   EnthalpyConverter::Ptr EC = m_ctx->enthalpy_converter();
 
-  std::string model = m_config->get_string("stress_balance_model");
+  std::string model = m_config->get_string("stress_balance.model");
 
   ShallowStressBalance *sliding = NULL;
   if (model == "none" || model == "sia") {
@@ -192,11 +192,11 @@ void IceRegionalModel::allocate_basal_yield_stress() {
     return;
   }
 
-  std::string model = m_config->get_string("stress_balance_model");
+  std::string model = m_config->get_string("stress_balance.model");
 
   // only these two use the yield stress (so far):
   if (model == "ssa" || model == "ssa+sia") {
-    std::string yield_stress_model = m_config->get_string("yield_stress_model");
+    std::string yield_stress_model = m_config->get_string("basal_yield_stress.model");
 
     if (yield_stress_model == "constant") {
       basal_yield_stress_model = new ConstantYieldStress(m_grid);
@@ -241,7 +241,7 @@ void IceRegionalModel::initFromFile(const std::string &filename) {
 
   // Allow re-starting from a file that does not contain u_ssa_bc and v_ssa_bc.
   // The user is probably using -regrid_file to bring in SSA B.C. data.
-  if (m_config->get_boolean("ssa_dirichlet_bc")) {
+  if (m_config->get_boolean("stress_balance.ssa.dirichlet_bc")) {
     bool u_ssa_exists, v_ssa_exists;
 
     nc.open(filename, PISM_READONLY);
@@ -269,7 +269,7 @@ void IceRegionalModel::initFromFile(const std::string &filename) {
 
   IceModel::initFromFile(filename);
 
-  if (m_config->get_boolean("ssa_dirichlet_bc")) {
+  if (m_config->get_boolean("stress_balance.ssa.dirichlet_bc")) {
       m_ssa_dirichlet_bc_values.metadata().set_string("pism_intent", "model_state");
   }
 
@@ -285,7 +285,7 @@ void IceRegionalModel::set_vars_from_options() {
   // base class reads the -bootstrap option and does the bootstrapping:
   IceModel::set_vars_from_options();
 
-  if (m_config->get_boolean("do_cold_ice_methods")) {
+  if (m_config->get_boolean("energy.temperature_based")) {
     throw RuntimeError("pismo does not support the 'cold' mode.");
   }
 }

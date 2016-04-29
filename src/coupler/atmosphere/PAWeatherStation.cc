@@ -37,8 +37,8 @@ namespace atmosphere {
 
 WeatherStation::WeatherStation(IceGrid::ConstPtr g)
   : AtmosphereModel(g),
-    m_precipitation(*g, "precipitation", m_config->get_string("time_dimension_name")),
-    m_air_temperature(*g, "air_temp", m_config->get_string("time_dimension_name")),
+    m_precipitation(*g, "precipitation", m_config->get_string("time.dimension_name")),
+    m_air_temperature(*g, "air_temp", m_config->get_string("time.dimension_name")),
     m_precip_metadata(m_sys, "precipitation"),
     m_air_temp_metadata(m_sys, "air_temp")
 {
@@ -166,7 +166,7 @@ void WeatherStation::temp_snapshot(IceModelVec2S &result) {
 
 void WeatherStation::add_vars_to_output_impl(const std::string &keyword,
                                                std::set<std::string> &result) {
-  if (keyword == "medium" || keyword == "big" || keyword == "2dbig") {
+  if (keyword == "medium" || keyword == "big" || keyword == "big_2d") {
     result.insert("air_temp");
     result.insert("precipitation");
   }
@@ -174,7 +174,7 @@ void WeatherStation::add_vars_to_output_impl(const std::string &keyword,
 
 void WeatherStation::define_variables_impl(const std::set<std::string> &vars,
                                                   const PIO &nc, IO_Type nctype) {
-  std::string order = m_config->get_string("output_variable_order");
+  std::string order = m_config->get_string("output.variable_order");
 
   if (set_contains(vars, "air_temp")) {
     // don't write using glaciological units

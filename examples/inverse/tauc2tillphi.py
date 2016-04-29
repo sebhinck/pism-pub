@@ -62,7 +62,7 @@ class BasalTillStrength:
         config.boolean_from_option("thk_eff", "thk_eff_basal_water_pressure")
 
         # # // "friction angle" in degrees
-        # config.scalar_from_option("plastic_phi", "default_till_phi")
+        # config.scalar_from_option("plastic_phi", "basal_yield_stress.mohr_coulomb.till_phi_default")
 
 # The updateYieldStress and getBasalWaterPressure come from iMBasal.
 
@@ -76,7 +76,7 @@ class BasalTillStrength:
 
         Nmin = 1e45
         with PISM.vec.Access(nocomm=[mask, thickness, bwat, bmr, tillphi], comm=tauc):
-            GHOSTS = int(self.grid.ctx().config().get_double("grid_max_stencil_width"))
+            GHOSTS = int(self.grid.ctx().config().get_double("grid.max_stencil_width"))
             for (i, j) in self.grid.points_with_ghosts(nGhosts=GHOSTS):
                 if mask.floating_ice(i, j):
                     tauc[i, j] = 0
@@ -108,7 +108,7 @@ class BasalTillStrength:
         if not tillphi_prev is None:
             vars.append(tillphi_prev)
         with PISM.vec.Access(nocomm=vars, comm=tillphi):
-            GHOSTS = int(self.grid.ctx().config().get_double("grid_max_stencil_width"))
+            GHOSTS = int(self.grid.ctx().config().get_double("grid.max_stencil_width"))
             for (i, j) in self.grid.points_with_ghosts(nGhosts=GHOSTS):
                 if mask.floating_ice(i, j):
                     if not tillphi_prev is None:
@@ -193,10 +193,10 @@ if PISM.getVerbosityLevel() > 3:
 
 if PISM.OptionBool("-ssa_glen", "SSA flow law Glen exponent"):
     B_schoof = 3.7e8     # Pa s^{1/3}; hardness
-    config.set_string("ssa_flow_law", "isothermal_glen")
-    config.set_double("ice_softness", pow(B_schoof, -config.get_double("Glen_exponent")))
+    config.set_string("stress_balance.ssa.flow_law", "isothermal_glen")
+    config.set_double("flow_law.isothermal_Glen.ice_softness", pow(B_schoof, -config.get_double("Glen_exponent")))
 else:
-    config.set_string("ssa_flow_law", "gpbld")
+    config.set_string("stress_balance.ssa.flow_law", "gpbld")
 
 surface = PISM.model.createIceSurfaceVec(grid)
 thickness = PISM.model.createIceThicknessVec(grid)
@@ -216,8 +216,8 @@ bwat = PISM.model.createBasalWaterVec(grid)
 for v in [bmr, tillphi, bwat]:
     v.regrid(bootfile, True)
 
-standard_gravity = config.get_double("standard_gravity")
-ice_rho = config.get_double("ice_density")
+standard_gravity = config.get_double("constants.standard_gravity")
+ice_rho = config.get_double("constants.ice.density")
 basal_till = BasalTillStrength(grid, ice_rho, standard_gravity)
 
 basal_till.updateYieldStress(ice_mask, thickness, bwat, bmr, tillphi, tauc)
@@ -228,12 +228,12 @@ basal_till.updateTillPhi_algebraic(ice_mask, thickness, bwat, bmr, tauc, tillphi
 
 pio = PISM.PIO(grid.com, "netcdf3")
 pio.open(output_file, PISM.PISM_READWRITE_MOVE)
-PISM.define_time(pio, grid.ctx().config().get_string("time_dimension_name"),
-                 grid.ctx().config().get_string("calendar"),
+PISM.define_time(pio, grid.ctx().config().get_string("time.dimension_name"),
+                 grid.ctx().config().get_string("time.calendar"),
                  grid.ctx().time().units_string(),
                  grid.ctx().unit_system())
 PISM.append_time(pio,
-                 grid.ctx().config().get_string("time_dimension_name"),
+                 grid.ctx().config().get_string("time.dimension_name"),
                  grid.ctx().time().current())
 pio.close()
 
