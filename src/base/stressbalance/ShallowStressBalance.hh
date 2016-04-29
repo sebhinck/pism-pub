@@ -30,8 +30,6 @@ class FlowLaw;
 
 class IceGrid;
 class IceBasalResistancePlasticLaw;
-class Diagnostic;
-class TSDiagnostic;
 class IceModelVec2CellType;
 
 namespace stressbalance {
@@ -48,11 +46,9 @@ public:
   void set_boundary_conditions(const IceModelVec2Int &locations,
                                const IceModelVec2V &velocities);
 
-  //! \brief Set the sea level used to check for floatation. (Units: meters,
-  //! relative to the geoid.)
-  void set_sea_level_elevation(double new_sea_level);
-
-  virtual void update(bool fast, const IceModelVec2S &melange_back_pressure) = 0;
+  virtual void update(bool fast,
+                      double sea_level,
+                      const IceModelVec2S &melange_back_pressure) = 0;
 
   //! \brief Get the thickness-advective 2D velocity.
   const IceModelVec2V& velocity();
@@ -85,8 +81,8 @@ public:
 protected:
   virtual void init_impl();
   
-  virtual void get_diagnostics_impl(std::map<std::string, Diagnostic*> &dict,
-                                    std::map<std::string, TSDiagnostic*> &ts_dict);
+  virtual void get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
+                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict);
 
   double m_sea_level;
   IceBasalResistancePlasticLaw *m_basal_sliding_law;
@@ -110,7 +106,7 @@ public:
   ZeroSliding(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
   virtual ~ZeroSliding();
   
-  virtual void update(bool fast, const IceModelVec2S &melange_back_pressure);
+  virtual void update(bool fast, double sea_level, const IceModelVec2S &melange_back_pressure);
 
   //! Writes requested couplings fields to file and/or asks an attached
   //! model to do so.
@@ -126,7 +122,7 @@ class PrescribedSliding : public ZeroSliding {
 public:
   PrescribedSliding(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
   virtual ~PrescribedSliding();
-  virtual void update(bool fast, const IceModelVec2S &melange_back_pressure);
+  virtual void update(bool fast, double sea_level, const IceModelVec2S &melange_back_pressure);
   virtual void init();
 };
 

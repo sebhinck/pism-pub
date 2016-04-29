@@ -22,6 +22,7 @@
 // the following three includes are needed here because of inlined code
 #include "iceModelVec.hh"
 #include "PISMConfigInterface.hh"
+#include "error_handling.hh"
 
 namespace pism {
 
@@ -73,8 +74,21 @@ public:
     m_is_floating_thickness = config.get_double("mask_is_floating_thickness_standard");
   }
 
-  void compute(double sea_level, IceModelVec2S &in_bed, IceModelVec2S &in_thickness,
+  void set_icefree_thickness(double threshold) {
+    if (threshold < 0.0) {
+      throw RuntimeError::formatted("invalid ice-free thickness threshold: %f", threshold);
+    }
+    m_icefree_thickness = threshold;
+  }
+
+  void compute(double sea_level, const IceModelVec2S &bed, const IceModelVec2S &thickness,
                IceModelVec2Int &out_mask, IceModelVec2S &out_surface) const;
+
+  void compute_mask(double sea_level, const IceModelVec2S &bed, const IceModelVec2S &thickness,
+                    IceModelVec2Int &result) const;
+
+  void compute_surface(double sea_level, const IceModelVec2S &bed, const IceModelVec2S &thickness,
+                       IceModelVec2S &result) const;
 
   inline void compute(double sea_level, double bed, double thickness,
                       int *out_mask, double *out_surface) const {

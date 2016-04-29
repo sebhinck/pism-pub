@@ -106,12 +106,6 @@ void ShallowStressBalance::set_boundary_conditions(const IceModelVec2Int &locati
   m_bc_mask = &locations;
 }
 
-//! \brief Set the sea level used to check for floatation. (Units: meters,
-//! relative to the geoid.)
-void ShallowStressBalance::set_sea_level_elevation(double new_sea_level) {
-  m_sea_level = new_sea_level;
-}
-
 //! \brief Get the thickness-advective 2D velocity.
 const IceModelVec2V& ShallowStressBalance::velocity() {
   return m_velocity;
@@ -123,13 +117,13 @@ const IceModelVec2S& ShallowStressBalance::basal_frictional_heating() {
 }
 
 
-void ShallowStressBalance::get_diagnostics_impl(std::map<std::string, Diagnostic*> &dict,
-                                           std::map<std::string, TSDiagnostic*> &/*ts_dict*/) {
-  dict["beta"]     = new SSB_beta(this);
-  dict["taub"]     = new SSB_taub(this);
-  dict["taub_mag"] = new SSB_taub_mag(this);
-  dict["taud"]     = new SSB_taud(this);
-  dict["taud_mag"] = new SSB_taud_mag(this);
+void ShallowStressBalance::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
+                                           std::map<std::string, TSDiagnostic::Ptr> &/*ts_dict*/) {
+  dict["beta"]     = Diagnostic::Ptr(new SSB_beta(this));
+  dict["taub"]     = Diagnostic::Ptr(new SSB_taub(this));
+  dict["taub_mag"] = Diagnostic::Ptr(new SSB_taub_mag(this));
+  dict["taud"]     = Diagnostic::Ptr(new SSB_taud(this));
+  dict["taud_mag"] = Diagnostic::Ptr(new SSB_taud_mag(this));
 }
 
 
@@ -159,7 +153,8 @@ void ZeroSliding::write_variables_impl(const std::set<std::string> &/*vars*/, co
 
 
 //! \brief Update the trivial shallow stress balance object.
-void ZeroSliding::update(bool fast, const IceModelVec2S &melange_back_pressure) {
+void ZeroSliding::update(bool fast, double sea_level, const IceModelVec2S &melange_back_pressure) {
+  (void) sea_level;
   (void) melange_back_pressure;
 
   if (not fast) {
@@ -426,8 +421,8 @@ IceModelVec::Ptr SSB_taud::compute_impl() {
   const IceModelVec2S *thickness = m_grid->variables().get_2d_scalar("land_ice_thickness");
   const IceModelVec2S *surface = m_grid->variables().get_2d_scalar("surface_altitude");
 
-  double standard_gravity = m_grid->ctx()->config()->get_double("standard_gravity"),
-    ice_density = m_grid->ctx()->config()->get_double("ice_density");
+  double standard_gravity = m_config->get_double("standard_gravity"),
+    ice_density = m_config->get_double("ice_density");
 
   IceModelVec::AccessList list;
   list.add(*result);
@@ -573,7 +568,9 @@ PrescribedSliding::~PrescribedSliding() {
   // empty
 }
 
-void PrescribedSliding::update(bool fast, const IceModelVec2S &melange_back_pressure) {
+void PrescribedSliding::update(bool fast, double sea_level,
+                               const IceModelVec2S &melange_back_pressure) {
+  (void) sea_level;
   (void) melange_back_pressure;
   if (not fast) {
     m_basal_frictional_heating.set(0.0);

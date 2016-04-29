@@ -35,21 +35,21 @@ EigenCalving::EigenCalving(IceGrid::ConstPtr g,
                            stressbalance::StressBalance *stress_balance)
   : Component(g), m_stencil_width(2),
     m_stress_balance(stress_balance) {
-  m_strain_rates.create(m_grid, "edot", WITH_GHOSTS,
+  m_strain_rates.create(m_grid, "strain_rates", WITH_GHOSTS,
                         m_stencil_width,
                         2);
 
   m_thk_loss.create(m_grid, "temporary_storage", WITH_GHOSTS, 1);
 
-  m_strain_rates.metadata(0).set_name("edot_1");
+  m_strain_rates.metadata(0).set_name("eigen1");
   m_strain_rates.set_attrs("internal",
                            "major principal component of horizontal strain-rate",
-                           "1/s", "", 0);
+                           "second-1", "", 0);
 
-  m_strain_rates.metadata(1).set_name("edot_2");
+  m_strain_rates.metadata(1).set_name("eigen2");
   m_strain_rates.set_attrs("internal",
                            "minor principal component of horizontal strain-rate",
-                           "1/s", "", 1);
+                           "second-1", "", 1);
 
   m_K = m_config->get_double("eigen_calving_K");
   m_restrict_timestep = m_config->get_boolean("cfl_eigen_calving");
@@ -255,7 +255,7 @@ MaxTimestep EigenCalving::max_timestep() {
     return MaxTimestep();
   }
 
-  // About 9 hours which corresponds to 10000 km/year on a 10 km grid
+  // About 9 hours which corresponds to 10000 km year-1 on a 10 km grid
   double dt_min = units::convert(m_sys, 0.001, "years", "seconds");
 
   // Distance (grid cells) from calving front where strain rate is evaluated
@@ -341,9 +341,9 @@ MaxTimestep EigenCalving::max_timestep() {
 
   m_log->message(3,
              "  eigencalving: max c_rate = %.2f m/a ... gives dt=%.5f a; mean c_rate = %.2f m/a over %d cells\n",
-             units::convert(m_sys, calving_rate_max, "m/s", "m/year"),
+             units::convert(m_sys, calving_rate_max, "m second-1", "m year-1"),
              units::convert(m_sys, dt, "seconds", "years"),
-             units::convert(m_sys, calving_rate_mean, "m/s", "m/year"),
+             units::convert(m_sys, calving_rate_mean, "m second-1", "m year-1"),
              (int)calving_rate_counter);
 
   return MaxTimestep(std::max(dt, dt_min));

@@ -57,7 +57,7 @@ class SSATestCaseCFBC: public SSATestCase {
 public:
   SSATestCaseCFBC(Context::Ptr ctx)
     : SSATestCase(ctx) {
-    V0 = units::convert(ctx->unit_system(), 300.0, "m/year", "m/second");
+    V0 = units::convert(ctx->unit_system(), 300.0, "m year-1", "m second-1");
     H0 = 600.0;                 // meters
     C  = 2.45e-18;
   }
@@ -114,7 +114,7 @@ void SSATestCaseCFBC::initializeSSACoefficients() {
 
 
   double enth0  = m_enthalpyconverter->enthalpy(273.15, 0.01, 0.0); // 0.01 water fraction
-  m_enthalpy.set(enth0);
+  m_ice_enthalpy.set(enth0);
 
   IceModelVec::AccessList list;
   list.add(m_thickness);

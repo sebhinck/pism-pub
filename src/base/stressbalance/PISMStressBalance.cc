@@ -81,14 +81,11 @@ void StressBalance::set_basal_melt_rate(const IceModelVec2S &bmr_input) {
 void StressBalance::update(bool fast, double sea_level,
                            const IceModelVec2S &melange_back_pressure) {
 
-  // Tell the ShallowStressBalance object about the current sea level:
-  m_shallow_stress_balance->set_sea_level_elevation(sea_level);
-
   const Profiling &profiling = m_grid->ctx()->profiling();
 
   try {
     profiling.begin("SSB");
-    m_shallow_stress_balance->update(fast, melange_back_pressure);
+    m_shallow_stress_balance->update(fast, sea_level, melange_back_pressure);
     profiling.end("SSB");
 
     profiling.begin("SB modifier");
@@ -197,6 +194,8 @@ void StressBalance::compute_vertical_velocity(const IceModelVec3 &u,
 
   const IceModelVec2CellType &mask = *m_grid->variables().get_2d_cell_type("mask");
 
+  const bool use_upstream_fd = m_config->get_string("stress_balance_vertical_velocity_approximation") == "upstream";
+
   IceModelVec::AccessList list;
   list.add(u);
   list.add(v);
@@ -210,6 +209,10 @@ void StressBalance::compute_vertical_velocity(const IceModelVec3 &u,
   const std::vector<double> &z = m_grid->z();
   const unsigned int Mz = m_grid->Mz();
 
+  const double
+    dx = m_grid->dx(),
+    dy = m_grid->dy();
+
   std::vector<double> u_x_plus_v_y(Mz);
 
   for (Points p(*m_grid); p; p.next()) {
@@ -218,32 +221,56 @@ void StressBalance::compute_vertical_velocity(const IceModelVec3 &u,
     double *w_ij = result.get_column(i,j);
 
     const double
-      *u_w = u.get_column(i-1,j),
+      *u_w  = u.get_column(i-1,j),
       *u_ij = u.get_column(i,j),
-      *u_e = u.get_column(i+1,j);
+      *u_e  = u.get_column(i+1,j);
     const double
-      *v_s = v.get_column(i,j-1),
+      *v_s  = v.get_column(i,j-1),
       *v_ij = v.get_column(i,j),
-      *v_n = v.get_column(i,j+1);
+      *v_n  = v.get_column(i,j+1);
 
-    double west = 1, east = 1, south = 1, north = 1,
-      D_x = 0,                // 1/(dx), 1/(2dx), or 0
-      D_y = 0;                // 1/(dy), 1/(2dy), or 0
+    double
+      west  = 1.0,
+      east  = 1.0,
+      south = 1.0,
+      north = 1.0;
+    double
+      D_x = 0,                  // 1/(dx), 1/(2dx), or 0
+      D_y = 0;                  // 1/(dy), 1/(2dy), or 0
 
     // Switch between second-order centered differences in the interior and
     // first-order one-sided differences at ice margins.
 
     // x-derivative
     {
-      if ((mask.icy(i,j) && mask.ice_free(i+1,j)) or (mask.ice_free(i,j) && mask.icy(i+1,j))) {
+      // use basal velocity to determine FD direction ("upwind" when it's clear, centered when it's
+      // not)
+      if (use_upstream_fd) {
+        const double
+          uw = 0.5 * (u_w[0] + u_ij[0]),
+          ue = 0.5 * (u_ij[0] + u_e[0]);
+
+        if (uw > 0.0 and ue >= 0.0) {
+          west = 1.0;
+          east = 0.0;
+        } else if (uw <= 0.0 and ue < 0.0) {
+          west = 0.0;
+          east = 1.0;
+        } else {
+          west = 1.0;
+          east = 1.0;
+        }
+      }
+
+      if ((mask.icy(i,j) and mask.ice_free(i+1,j)) or (mask.ice_free(i,j) and mask.icy(i+1,j))) {
         east = 0;
       }
-      if ((mask.icy(i,j) && mask.ice_free(i-1,j)) or (mask.ice_free(i,j) && mask.icy(i-1,j))) {
+      if ((mask.icy(i,j) and mask.ice_free(i-1,j)) or (mask.ice_free(i,j) and mask.icy(i-1,j))) {
         west = 0;
       }
 
       if (east + west > 0) {
-        D_x = 1.0 / (m_grid->dx() * (east + west));
+        D_x = 1.0 / (dx * (east + west));
       } else {
         D_x = 0.0;
       }
@@ -251,15 +278,34 @@ void StressBalance::compute_vertical_velocity(const IceModelVec3 &u,
 
     // y-derivative
     {
-      if ((mask.icy(i,j) && mask.ice_free(i,j+1)) or (mask.ice_free(i,j) && mask.icy(i,j+1))) {
+      // use basal velocity to determine FD direction ("upwind" when it's clear, centered when it's
+      // not)
+      if (use_upstream_fd) {
+        const double
+          vs = 0.5 * (v_s[0] + v_ij[0]),
+          vn = 0.5 * (v_ij[0] + v_n[0]);
+
+        if (vs > 0.0 and vn >= 0.0) {
+          south = 1.0;
+          north = 0.0;
+        } else if (vs <= 0.0 and vn < 0.0) {
+          south = 0.0;
+          north = 1.0;
+        } else {
+          south = 1.0;
+          north = 1.0;
+        }
+      }
+
+      if ((mask.icy(i,j) and mask.ice_free(i,j+1)) or (mask.ice_free(i,j) and mask.icy(i,j+1))) {
         north = 0;
       }
-      if ((mask.icy(i,j) && mask.ice_free(i,j-1)) or (mask.ice_free(i,j) && mask.icy(i,j-1))) {
+      if ((mask.icy(i,j) and mask.ice_free(i,j-1)) or (mask.ice_free(i,j) and mask.icy(i,j-1))) {
         south = 0;
       }
 
       if (north + south > 0) {
-        D_y = 1.0 / (m_grid->dy() * (north + south));
+        D_y = 1.0 / (dy * (north + south));
       } else {
         D_y = 0.0;
       }

@@ -82,9 +82,9 @@ void SSATestCaseJ::initializeSSACoefficients() {
   m_ice_mask.set(MASK_FLOATING);
 
   double enth0  = m_enthalpyconverter->enthalpy(273.15, 0.01, 0.0); // 0.01 water fraction
-  m_enthalpy.set(enth0);
+  m_ice_enthalpy.set(enth0);
 
-  /* use Ritz et al (2001) value of 30 MPa yr for typical vertically-averaged viscosity */
+  /* use Ritz et al (2001) value of 30 MPa year for typical vertically-averaged viscosity */
   double ocean_rho = m_config->get_double("sea_water_density"),
     ice_rho = m_config->get_double("ice_density");
   const double nu0 = units::convert(m_sys, 30.0, "MPa year", "Pa s"); /* = 9.45e14 Pa s */

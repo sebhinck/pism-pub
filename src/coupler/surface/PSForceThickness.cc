@@ -100,7 +100,7 @@ void ForceThickness::init_impl() {
 
   options::Real ftt_alpha("-force_to_thickness_alpha",
                           "Specifies the value of force-to-thickness alpha in per-year units",
-                          units::convert(m_sys, m_alpha, "s-1", "yr-1"));
+                          units::convert(m_sys, m_alpha, "s-1", "year-1"));
 
   m_alpha_ice_free_factor = options::Real("-force_to_thickness_ice_free_alpha_factor",
                                           "Set the multiplicative factor for alpha to use in ice-free areas",
@@ -115,14 +115,14 @@ void ForceThickness::init_impl() {
   // is given in a^{-1}
   if (ftt_alpha.is_set()) {
     m_log->message(3, "    option -force_to_thickness_alpha seen\n");
-    m_alpha = units::convert(m_sys, ftt_alpha, "yr-1", "s-1");
+    m_alpha = units::convert(m_sys, ftt_alpha, "year-1", "s-1");
   }
 
   m_log->message(2,
              "    alpha = %.6f year-1 for -force_to_thickness mechanism\n"
              "    alpha = %.6f year-1 in areas with target ice thickness of less than %.3f meters\n",
-             units::convert(m_sys, m_alpha, "s-1", "yr-1"),
-             m_alpha_ice_free_factor * units::convert(m_sys, m_alpha, "s-1", "yr-1"),
+             units::convert(m_sys, m_alpha, "s-1", "year-1"),
+             m_alpha_ice_free_factor * units::convert(m_sys, m_alpha, "s-1", "year-1"),
              m_ice_free_thickness_threshold);
 
   // m_input_file now contains name of -force_to_thickness file; now check
@@ -354,7 +354,7 @@ void ForceThickness::add_vars_to_output_impl(const std::string &keyword, std::se
 }
 
 void ForceThickness::define_variables_impl(const std::set<std::string> &vars, const PIO &nc, IO_Type nctype) {
-  std::string order = m_grid->ctx()->config()->get_string("output_variable_order");
+  std::string order = m_config->get_string("output_variable_order");
 
   if (set_contains(vars, "ftt_mask")) {
     m_ftt_mask.define(nc, nctype);
