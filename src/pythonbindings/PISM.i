@@ -276,6 +276,10 @@
 %ignore pism::fem::p1::chi;
 %ignore pism::fem::p1::n_sides;
 %ignore pism::fem::p1::incident_nodes;
+
+%ignore pism::fem::p1::outward_normals;
+%ignore pism::fem::q1::outward_normals;
+
 %include "base/stressbalance/ssa/FETools.hh"
 
 %include pism_inverse.i
