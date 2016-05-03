@@ -25,6 +25,8 @@
 
 #include <petscmat.h>
 
+#include <vector>
+
 #include "base/util/Vector2.hh"
 
 namespace pism {
@@ -192,7 +194,6 @@ const unsigned int incident_nodes[n_sides][2] = {
 
 //! Outward-pointing normal vectors to sides of a Q1 element aligned with the x and y axes.
 std::vector<Vector2> outward_normals();
-
 
 //! 2-point quadrature for sides of Q1 quadrilateral elements.
 class BoundaryQuadrature2 {
