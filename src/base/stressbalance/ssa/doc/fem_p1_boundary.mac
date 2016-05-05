@@ -41,3 +41,15 @@ dr_star[i] := diff(r_star[i](t), t);
 /* dr/dt for triangle i, side j, computed using the chain rule.
 Compare to dr_s. */
 dr_chain[i, j] := J[i] . dr_star[j];
+
+/* 2-point quadrature on [-1,1] (in the "t" space) */
+quad_pts : [-1 / sqrt(3), 1 / sqrt(3)];
+
+/* xi, eta coordinates of quadrature points, computed using the
+parameterization of sides of the reference element. We can use these
+coordinates and 2D P1 shape functions to compute shape function values
+at quadrature points on sides. (This uses the fact that P1 shape
+functions restricted to sides are linear, i.e. are just 1D "hat" shape
+functions.) */
+
+quad_pts_star[i,j] := r_star[i](quad_pts[j]);
