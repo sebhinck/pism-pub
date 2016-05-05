@@ -650,8 +650,6 @@ void SSAFEM::cache_residual_cfbc() {
           continue;
         }
 
-        const unsigned int Nq = bq.n();
-
         // residual contributions at element nodes
         std::vector<Vector2> I(Nk);
 
@@ -665,8 +663,10 @@ void SSAFEM::cache_residual_cfbc() {
         // second
         double psi[2] = {0.0, 0.0};
 
+        const unsigned int Nq = bq.n();
+        const unsigned int n_sides = E->n_sides();
         // loop over element sides
-        for (unsigned int side = 0; side < E->n_sides(); ++side) {
+        for (unsigned int side = 0; side < n_sides; ++side) {
 
           // nodes incident to the current side
           const int
