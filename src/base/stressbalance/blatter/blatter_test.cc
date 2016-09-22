@@ -169,11 +169,11 @@ int main(int argc, char *argv[]) {
     PIO pio(grid->com, "netcdf3");
 
     pio.open(output_file, PISM_READWRITE_MOVE);
-    io::define_time(pio, config->get_string("time_dimension_name"),
+    io::define_time(pio, config->get_string("time.dimension_name"),
                     grid->ctx()->time()->calendar(),
                     grid->ctx()->time()->CF_units_string(),
                     ctx->unit_system());
-    io::append_time(pio, config->get_string("time_dimension_name"), 0.0);
+    io::append_time(pio, config->get_string("time.dimension_name"), 0.0);
     // Ensure that time was appended (io::append_time above schedules a write, but does not perform
     // any I/O).
     pio.close();

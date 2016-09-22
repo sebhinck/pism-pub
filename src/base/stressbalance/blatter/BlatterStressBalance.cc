@@ -120,13 +120,13 @@ BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g,
 
   Config::ConstPtr config = g->ctx()->config();
 
-  int blatter_Mz = (int)config->get_double("blatter_Mz");
-  m_da2 = g->get_dm(1, (int)config->get_double("grid_max_stencil_width"));
+  int blatter_Mz = (int)config->get_double("stress_balance.blatter.Mz");
+  m_da2 = g->get_dm(1, (int)config->get_double("grid.max_stencil_width"));
 
   m_ctx.Lx = 2.0 * g->Lx();
   m_ctx.Ly = 2.0 * g->Ly();
   m_ctx.dirichlet_scale = 1.0;
-  m_ctx.rhog = config->get_double("ice_density") * config->get_double("standard_gravity");
+  m_ctx.rhog = config->get_double("constants.ice.density") * config->get_double("constants.standard_gravity");
   m_ctx.no_slip = PETSC_TRUE;	// FIXME (at least make configurable)
   m_ctx.nonlinear.viscosity = viscosity;
   m_ctx.nonlinear.drag = drag;
@@ -187,10 +187,10 @@ BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g,
   m_v_sigma.write_in_glaciological_units = false;
 
   {
-    rheology::FlowLawFactory ice_factory("blatter_", config, e);
+    rheology::FlowLawFactory ice_factory("stress_balance.blatter.", config, e);
     ice_factory.remove(ICE_GOLDSBY_KOHLSTEDT);
 
-    ice_factory.set_default(config->get_string("blatter_flow_law"));
+    ice_factory.set_default(config->get_string("stress_balance.blatter.flow_law"));
 
     m_flow_law = ice_factory.create();
   }
@@ -252,8 +252,8 @@ void BlatterStressBalance::setup() {
   PointerWrapper2D<PrmNode> parameters;
   DM da;
   double
-    ice_density = m_config->get_double("ice_density"),
-    sea_water_density = m_config->get_double("sea_water_density"),
+    ice_density = m_config->get_double("constants.ice.density"),
+    sea_water_density = m_config->get_double("constants.sea_water.density"),
     alpha = ice_density / sea_water_density;
 
   ierr = SNESGetDM(this->m_snes, &da); PISM_CHK(ierr, "SNESGetDM");
@@ -301,7 +301,7 @@ void BlatterStressBalance::initialize_ice_hardness() {
   PetscErrorCode ierr;
 
   PointerWrapper3D<PetscScalar> hardness;
-  unsigned int Mz_fem = static_cast<unsigned int>(m_config->get_double("blatter_Mz"));
+  unsigned int Mz_fem = static_cast<unsigned int>(m_config->get_double("stress_balance.blatter.Mz"));
   DM da;
   Vec hardness_vec;
 
@@ -365,7 +365,7 @@ void BlatterStressBalance::transfer_velocity() {
   double *u_ij, *v_ij;
   DM da;
   Vec X;
-  unsigned int Mz_fem = static_cast<unsigned int>(m_config->get_double("blatter_Mz"));
+  unsigned int Mz_fem = static_cast<unsigned int>(m_config->get_double("stress_balance.blatter.Mz"));
 
   ierr = SNESGetDM(this->m_snes, &da); PISM_CHK(ierr, "SNESGetDM");
   ierr = SNESGetSolution(this->m_snes, &X); PISM_CHK(ierr, "SNESGetSolution");
@@ -446,7 +446,7 @@ void BlatterStressBalance::copy_velocity(Direction direction) {
   PointerWrapper3D<Vector2> U;
   DM da;
   Vec X;
-  unsigned int Mz_fem = static_cast<unsigned int>(m_config->get_double("blatter_Mz"));
+  unsigned int Mz_fem = static_cast<unsigned int>(m_config->get_double("stress_balance.blatter.Mz"));
 
   ierr = SNESGetDM(this->m_snes, &da); PISM_CHK(ierr, "SNESGetDM");
   ierr = SNESGetSolution(this->m_snes, &X); PISM_CHK(ierr, "SNESGetSolution");
