@@ -95,6 +95,7 @@ public:
   virtual std::string stdout_report();
 
   virtual void update(bool fast,
+                      double sea_level,
                       const IceModelVec2S &melange_back_pressure);
 
   const IceModelVec3& velocity_u() const;

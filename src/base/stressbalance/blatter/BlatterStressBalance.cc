@@ -212,9 +212,12 @@ void BlatterStressBalance::init_impl() {
   m_enthalpy = vars.get_3d_scalar("enthalpy");
 }
 
-void BlatterStressBalance::update(bool fast, const IceModelVec2S &melange_back_pressure) {
+void BlatterStressBalance::update(bool fast,
+                                  double sea_level,
+                                  const IceModelVec2S &melange_back_pressure) {
 
   (void) melange_back_pressure;
+  (void) sea_level;
 
   if (fast) {
     throw RuntimeError("'fast' mode not meaningful for BlatterStressBalance");

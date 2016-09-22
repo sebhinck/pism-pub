@@ -156,12 +156,12 @@ int main(int argc, char *argv[]) {
     stressbalance::BlatterStressBalance blatter(grid, EC);
     // Initialize the Blatter solver:
     blatter.init();
-    blatter.update(false, melange_back_pressure);
+    blatter.update(false, 0.0, melange_back_pressure);
     PetscLogStagePop();
 
     if (options::Bool("-compare", "Compare 'cold' and 'hot' runs.")) {
       PetscLogStagePush(hot);
-      blatter.update(false, melange_back_pressure);
+      blatter.update(false, 0.0, melange_back_pressure);
       PetscLogStagePop();
     }
 
