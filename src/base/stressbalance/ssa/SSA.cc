@@ -42,7 +42,7 @@ SSAStrengthExtension::SSAStrengthExtension(const Config &config) {
 /*! Determines nu by input strength and current min_thickness. */
 void SSAStrengthExtension::set_notional_strength(double my_nuH) {
   if (my_nuH <= 0.0) {
-    throw RuntimeError::formatted("nuH must be positive, got %f", my_nuH);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "nuH must be positive, got %f", my_nuH);
   }
   m_constant_nu = my_nuH / m_min_thickness;
 }
@@ -51,7 +51,7 @@ void SSAStrengthExtension::set_notional_strength(double my_nuH) {
 /*! Preserves strength (nuH) by also updating using current nu.  */
 void SSAStrengthExtension::set_min_thickness(double my_min_thickness) {
   if (my_min_thickness <= 0.0) {
-    throw RuntimeError::formatted("min_thickness must be positive, got %f",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "min_thickness must be positive, got %f",
                                   my_min_thickness);
   }
   double nuH = m_constant_nu * m_min_thickness;
@@ -70,8 +70,8 @@ double SSAStrengthExtension::get_min_thickness() const {
 }
 
 
-SSA::SSA(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e)
-  : ShallowStressBalance(g, e)
+SSA::SSA(IceGrid::ConstPtr g)
+  : ShallowStressBalance(g)
 {
   m_thickness = NULL;
   m_tauc = NULL;
@@ -170,8 +170,7 @@ void SSA::init_impl() {
                                                 "don't read the initial guess");
 
     if (read_initial_guess) {
-      PIO input_file(m_grid->com, "guess_mode");
-      input_file.open(opts.filename, PISM_READONLY);
+      PIO input_file(m_grid->com, "guess_mode", opts.filename, PISM_READONLY);
       bool u_ssa_found = input_file.inq_var("u_ssa");
       bool v_ssa_found = input_file.inq_var("v_ssa");
       unsigned int start = input_file.inq_nrecords() - 1;
@@ -228,7 +227,7 @@ surface gradient. When the thickness at a grid point is very small (below \c
 minThickEtaTransform in the procedure), the formula is slightly modified to
 give a lower driving stress. The transformation is not used in floating ice.
  */
-void SSA::compute_driving_stress(IceModelVec2V &result) {
+void SSA::compute_driving_stress(IceModelVec2V &result) const {
   const IceModelVec2S &thk = *m_thickness; // to improve readability (below)
 
   const double n = m_flow_law->exponent(), // frequently n = 3
@@ -370,7 +369,7 @@ void SSA::compute_driving_stress(IceModelVec2V &result) {
   }
 }
 
-std::string SSA::stdout_report() {
+std::string SSA::stdout_report() const {
   return m_stdout_ssa;
 }
 
@@ -381,28 +380,16 @@ void SSA::set_initial_guess(const IceModelVec2V &guess) {
 }
 
 
-void SSA::add_vars_to_output_impl(const std::string &/*keyword*/, std::set<std::string> &result) {
-  result.insert("vel_ssa");
+void SSA::define_model_state_impl(const PIO &output) const {
+  m_velocity.define(output);
 }
 
-
-void SSA::define_variables_impl(const std::set<std::string> &vars, const PIO &nc, IO_Type nctype) {
-
-  if (set_contains(vars, "vel_ssa")) {
-    m_velocity.define(nc, nctype);
-  }
-}
-
-
-void SSA::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-
-  if (set_contains(vars, "vel_ssa")) {
-    m_velocity.write(nc);
-  }
+void SSA::write_model_state_impl(const PIO &output) const {
+  m_velocity.write(output);
 }
 
 void SSA::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                          std::map<std::string, TSDiagnostic::Ptr> &ts_dict) {
+                          std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const {
 
   ShallowStressBalance::get_diagnostics_impl(dict, ts_dict);
 
@@ -411,7 +398,7 @@ void SSA::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
   dict["taud_mag"] = Diagnostic::Ptr(new SSA_taud_mag(this));
 }
 
-SSA_taud::SSA_taud(SSA *m)
+SSA_taud::SSA_taud(const SSA *m)
   : Diag<SSA>(m) {
 
   m_dof = 2;
@@ -443,7 +430,7 @@ IceModelVec::Ptr SSA_taud::compute_impl() {
   return result;
 }
 
-SSA_taud_mag::SSA_taud_mag(SSA *m)
+SSA_taud_mag::SSA_taud_mag(const SSA *m)
   : Diag<SSA>(m) {
 
   // set metadata:
@@ -473,7 +460,7 @@ IceModelVec::Ptr SSA_taud_mag::compute_impl() {
 //! Evaluate the ocean pressure difference term in the calving-front BC.
 double SSA::ocean_pressure_difference(bool shelf, bool dry_mode, double H, double bed,
                                       double sea_level, double rho_ice, double rho_ocean,
-                                      double g) {
+                                      double g) const {
   if (shelf) {
     // floating shelf
     return 0.5 * rho_ice * g * (1.0 - (rho_ice / rho_ocean)) * H * H;
@@ -485,6 +472,73 @@ double SSA::ocean_pressure_difference(bool shelf, bool dry_mode, double H, doubl
       return 0.5 * rho_ice * g * (H * H - (rho_ocean / rho_ice) * pow(sea_level - bed, 2.0));
     }
   }
+}
+
+SSA_calving_front_pressure_difference::SSA_calving_front_pressure_difference(SSA *m)
+  : Diag<SSA>(m) {
+
+  /* set metadata: */
+  m_vars.push_back(SpatialVariableMetadata(m_sys, "ocean_pressure_difference"));
+  m_vars[0].set_double("_FillValue", m_fill_value);
+
+  set_attrs("ocean pressure difference at calving fronts", "",
+            "", "", 0);
+}
+
+IceModelVec::Ptr SSA_calving_front_pressure_difference::compute_impl() {
+
+  IceModelVec2S::Ptr result(new IceModelVec2S);
+  result->create(m_grid, "ocean_pressure_difference", WITHOUT_GHOSTS);
+  result->metadata(0) = m_vars[0];
+
+  IceModelVec2CellType mask;
+  mask.create(m_grid, "mask", WITH_GHOSTS);
+
+  const IceModelVec2S &H   = *m_grid->variables().get_2d_scalar("land_ice_thickness");
+  const IceModelVec2S &bed = *m_grid->variables().get_2d_scalar("bedrock_altitude");
+  const double sea_level = 0.0;  // FIXME: use real sea level
+
+  {
+    const double H_threshold = m_config->get_double("stress_balance.ice_free_thickness_standard");
+    GeometryCalculator gc(*m_config);
+    gc.set_icefree_thickness(H_threshold);
+
+    gc.compute_mask(sea_level, bed, H, mask);
+  }
+
+  const double
+    rho_ice   = m_config->get_double("constants.ice.density"),
+    rho_ocean = m_config->get_double("constants.sea_water.density"),
+    g         = m_config->get_double("constants.standard_gravity");
+
+  const bool dry_mode = m_config->get_boolean("ocean.always_grounded");
+
+  IceModelVec::AccessList list;
+  list.add(H);
+  list.add(bed);
+  list.add(mask);
+  list.add(*result);
+
+  ParallelSection loop(m_grid->com);
+  try {
+    for (Points p(*m_grid); p; p.next()) {
+      const int i = p.i(), j = p.j();
+
+      if (mask.icy(i, j) and mask.next_to_ice_free_ocean(i, j)) {
+        (*result)(i, j) = model->ocean_pressure_difference(mask.ocean(i, j), dry_mode,
+                                                           H(i, j), bed(i, j), sea_level,
+                                                           rho_ice, rho_ocean, g);
+      } else {
+        (*result)(i, j) = m_fill_value;
+      }
+    }
+  } catch (...) {
+    loop.failed();
+  }
+  loop.check();
+
+
+  return result;
 }
 
 } // end of namespace stressbalance

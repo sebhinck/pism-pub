@@ -58,7 +58,7 @@ using namespace mask;
   Also calls the code which removes icebergs, to avoid stress balance
   solver problems associated to not-attached-to-grounded ice.
 */
-void IceModel::updateSurfaceElevationAndMask() {
+void IceModel::enforce_consistency_of_geometry() {
 
   assert(m_ocean != NULL);
   const double sea_level = m_ocean->sea_level_elevation();
@@ -83,7 +83,7 @@ void IceModel::updateSurfaceElevationAndMask() {
   gc.compute_mask(sea_level, bed_topography, m_ice_thickness, m_cell_type);
   gc.compute_surface(sea_level, bed_topography, m_ice_thickness, m_ice_surface_elevation);
 
-  check_minimum_ice_thickness();
+  check_minimum_ice_thickness(m_ice_thickness);
 }
 
 //! \brief Adjust ice flow through interfaces of the cell i,j.
@@ -425,7 +425,7 @@ the time-step.*  Multiplying by dt will \b not necessarily give the
 corresponding change from the beginning to the end of the time-step.
 
 FIXME:  The calving rate can be computed by post-processing:
-dimassdt = surface_ice_flux + basal_ice_flux + sub_shelf_ice_flux + discharge_flux_mass_rate + nonneg_rule_flux
+mass_rate_of_change = surface_ice_flux + basal_ice_flux + sub_shelf_ice_flux + discharge_flux_mass_rate + nonneg_rule_flux
 
 Removed commented-out code using the coverage ratio to compute the surface mass
 balance contribution (to reduce clutter). Please see the commit 26330a7 and
@@ -445,8 +445,9 @@ void IceModel::massContExplicitStep() {
     ice_density              = m_config->get_double("constants.ice.density"),
     meter_per_s_to_kg_per_m2 = m_dt * ice_density;
 
+  IceModelVec2S &climatic_mass_balance = m_work2d[2];
   assert(m_surface != NULL);
-  m_surface->ice_surface_mass_flux(m_climatic_mass_balance);
+  m_surface->ice_surface_mass_flux(climatic_mass_balance);
 
   IceModelVec2S &H_new = m_work2d[0];
   H_new.copy_from(m_ice_thickness);
@@ -467,14 +468,14 @@ void IceModel::massContExplicitStep() {
   list.add(m_basal_melt_rate);
   list.add(Qdiff);
   list.add(vel_advective);
-  list.add(m_climatic_mass_balance);
+  list.add(climatic_mass_balance);
   list.add(m_cell_type);
   list.add(H_new);
 
   // related to PIK part_grid mechanism; see Albrecht et al 2011
   const bool
     do_part_grid             = m_config->get_boolean("geometry.part_grid.enabled"),
-    do_redist                = m_config->get_boolean("geometry.part_grid.redistribute_residual_volume"),
+    do_redist                = do_part_grid,
     reduce_frontal_thickness = m_config->get_boolean("geometry.part_grid.reduce_frontal_thickness");
 
   if (do_part_grid) {
@@ -492,10 +493,10 @@ void IceModel::massContExplicitStep() {
     list.add(m_ssa_dirichlet_bc_values);
   }
 
-  list.add(m_climatic_mass_balance_cumulative);
-  list.add(m_nonneg_flux_2D_cumulative);
-  list.add(m_grounded_basal_flux_2D_cumulative);
-  list.add(m_floating_basal_flux_2D_cumulative);
+  list.add(m_cumulative_flux_fields.climatic_mass_balance);
+  list.add(m_cumulative_flux_fields.nonneg);
+  list.add(m_cumulative_flux_fields.basal_grounded);
+  list.add(m_cumulative_flux_fields.basal_floating);
   list.add(m_flux_divergence);
 
   ParallelSection loop(m_grid->com);
@@ -518,7 +519,7 @@ void IceModel::massContExplicitStep() {
       // Source terms:
       // Note: here we convert surface mass balance from [kg m-2 s-1] to [m s-1]:
       double
-        surface_mass_balance = m_climatic_mass_balance(i, j) / ice_density, // units: [m s-1]
+        surface_mass_balance = climatic_mass_balance(i, j) / ice_density, // units: [m s-1]
         basal_melt_rate      = 0.0, // units: [m s-1]
         H_to_Href_flux       = 0.0, // units: [m]
         Href_to_H_flux       = 0.0, // units: [m]
@@ -628,7 +629,7 @@ void IceModel::massContExplicitStep() {
         nonneg_rule_flux += -H_new(i, j);
 
         // convert from [m] to [kg m-2]:
-        m_nonneg_flux_2D_cumulative(i, j) += nonneg_rule_flux * ice_density; // units: [kg m-2]
+        m_cumulative_flux_fields.nonneg(i, j) += nonneg_rule_flux * ice_density; // units: [kg m-2]
 
         // this has to go *after* accounting above!
         H_new(i, j) = 0.0;
@@ -657,13 +658,13 @@ void IceModel::massContExplicitStep() {
       }
 
       // surface_mass_balance has the units of [m s-1]; convert to [kg m-2]
-      m_climatic_mass_balance_cumulative(i, j) += surface_mass_balance * meter_per_s_to_kg_per_m2;
+      m_cumulative_flux_fields.climatic_mass_balance(i, j) += surface_mass_balance * meter_per_s_to_kg_per_m2;
 
       // basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
-      m_grounded_basal_flux_2D_cumulative(i, j) += -basal_melt_rate * meter_per_s_to_kg_per_m2;
+      m_cumulative_flux_fields.basal_grounded(i, j) += -basal_melt_rate * meter_per_s_to_kg_per_m2;
 
       // basal_melt_rate has the units of [m s-1]; convert to [kg m-2]
-      m_floating_basal_flux_2D_cumulative(i, j) += -basal_melt_rate * meter_per_s_to_kg_per_m2;
+      m_cumulative_flux_fields.basal_floating(i, j) += -basal_melt_rate * meter_per_s_to_kg_per_m2;
 
       // time-series accounting:
       {
@@ -718,7 +719,7 @@ void IceModel::massContExplicitStep() {
   }
 
   // Check if the ice thickness exceeded the height of the computational box and stop if it did.
-  check_maximum_ice_thickness();
+  check_maximum_ice_thickness(m_ice_thickness);
 }
 
 /**

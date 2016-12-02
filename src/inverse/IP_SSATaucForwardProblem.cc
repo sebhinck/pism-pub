@@ -29,9 +29,9 @@
 namespace pism {
 namespace inverse {
 
-IP_SSATaucForwardProblem::IP_SSATaucForwardProblem(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e,
+IP_SSATaucForwardProblem::IP_SSATaucForwardProblem(IceGrid::ConstPtr g,
                                                    IPDesignVariableParameterization &tp)
-  : SSAFEM(g, e),
+  : SSAFEM(g),
     m_zeta(NULL),
     m_fixed_tauc_locations(NULL),
     m_tauc_param(tp),
@@ -575,7 +575,7 @@ void IP_SSATaucForwardProblem::apply_linearization(IceModelVec2S &dzeta, IceMode
   ierr = KSPGetConvergedReason(m_ksp, &reason);
   PISM_CHK(ierr, "KSPGetConvergedReason");
   if (reason < 0) {
-    throw RuntimeError::formatted("IP_SSATaucForwardProblem::apply_linearization solve"
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "IP_SSATaucForwardProblem::apply_linearization solve"
                                   " failed to converge (KSP reason %s)",
                                   KSPConvergedReasons[reason]);
   } else {
@@ -646,7 +646,7 @@ void IP_SSATaucForwardProblem::apply_linearization_transpose(IceModelVec2V &du,
   PISM_CHK(ierr, "KSPGetConvergedReason");
 
   if (reason < 0) {
-    throw RuntimeError::formatted("IP_SSATaucForwardProblem::apply_linearization solve"
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "IP_SSATaucForwardProblem::apply_linearization solve"
                                   " failed to converge (KSP reason %s)",
                                   KSPConvergedReasons[reason]);
   } else {

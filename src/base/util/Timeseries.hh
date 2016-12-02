@@ -78,12 +78,12 @@ public:
              const std::string &name, const std::string &dimension_name);
   
   void read(const PIO &nc, const Time &time_manager, const Logger &log);
-  void write(const PIO &nc);
-  double operator()(double time);
+  void write(const PIO &nc) const;
+  double operator()(double time) const;
   double operator[](unsigned int j) const;
-  double average(double t, double dt, unsigned int N);
+  double average(double t, double dt, unsigned int N) const;
   void append(double value, double a, double b);
-  int length();
+  int length() const;
 
   TimeseriesMetadata& metadata();
   TimeseriesMetadata& dimension_metadata();
@@ -91,6 +91,10 @@ public:
   void scale(double scaling_factor);
 
   std::string name() const;
+
+  bool get_use_bounds() const;
+  void set_use_bounds(bool flag);
+
 protected:
   void set_bounds_units();
   TimeseriesMetadata m_dimension, m_variable;

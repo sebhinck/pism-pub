@@ -1,4 +1,4 @@
-/* Copyright (C) 2013, 2014, 2015 PISM Authors
+/* Copyright (C) 2013, 2014, 2015, 2016 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -37,15 +37,9 @@ public:
   virtual ~Delta_MBP();
 
 protected:
-  virtual MaxTimestep max_timestep_impl(double t);
-  virtual void write_variables_impl(const std::set<std::string> &vars, const PIO &nc);
-  virtual void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result);
-  virtual void define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
-                                     IO_Type nctype);
+  virtual MaxTimestep max_timestep_impl(double t) const;
   virtual void init_impl();
-  virtual void melange_back_pressure_fraction_impl(IceModelVec2S &result);
-protected:
-  SpatialVariableMetadata shelfbmassflux, shelfbtemp;
+  virtual void melange_back_pressure_fraction_impl(IceModelVec2S &result) const;
 };
 
 } // end of namespace ocean

@@ -46,57 +46,24 @@ public:
   }
 
 protected:
-  virtual MaxTimestep max_timestep_impl(double t) {
+  virtual MaxTimestep max_timestep_impl(double t) const {
     (void) t;
     return MaxTimestep();
   }
 
-  virtual void write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-
-    std::map<std::string, IceModelVec2T*>::iterator k = m_fields.begin();
+  virtual void define_model_state_impl(const PIO &output) const {
+    std::map<std::string, IceModelVec2T*>::const_iterator k = m_fields.begin();
     while(k != m_fields.end()) {
-
-      if (set_contains(vars, k->first)) {
-        (k->second)->write(nc);
-      }
-
+      k->second->define(output);
       ++k;
-    }
-
-    if (Model::m_input_model != NULL) {
-      Model::m_input_model->write_variables(vars, nc);
     }
   }
 
-  virtual void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result)
-  {
-    std::map<std::string, IceModelVec2T*>::iterator k = m_fields.begin();
+  virtual void write_model_state_impl(const PIO &output) const {
+    std::map<std::string, IceModelVec2T*>::const_iterator k = m_fields.begin();
     while(k != m_fields.end()) {
-      result.insert(k->first);
+      k->second->write(output);
       ++k;
-    }
-
-    if (Model::m_input_model != NULL) {
-      Model::m_input_model->add_vars_to_output(keyword, result);
-    }
-
-  }
-
-  virtual void define_variables_impl(const std::set<std::string> &vars_input,
-                                     const PIO &nc, IO_Type nctype)
-  {
-    std::set<std::string> vars = vars_input;
-    std::map<std::string, IceModelVec2T*>::iterator k = m_fields.begin();
-    while(k != m_fields.end()) {
-      if (set_contains(vars, k->first)) {
-        (k->second)->define(nc, nctype);
-        vars.erase(k->first);
-      }
-      ++k;
-    }
-
-    if (Model::m_input_model != NULL) {
-      Model::m_input_model->define_variables(vars, nc, nctype);
     }
   }
 
@@ -120,7 +87,7 @@ protected:
     options::Integer period(m_option_prefix + "_period",
                             "Specifies the length of the climate data period (in years)", 0);
     if (period.value() < 0.0) {
-      throw RuntimeError::formatted("invalid %s_period %d (period length cannot be negative)",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid %s_period %d (period length cannot be negative)",
                                     m_option_prefix.c_str(), period.value());
     }
     m_bc_period = (unsigned int)period;
@@ -138,8 +105,7 @@ protected:
   {
     unsigned int buffer_size = (unsigned int) Model::m_config->get_double("climate_forcing.buffer_size");
 
-    PIO nc(Model::m_grid->com, "netcdf3");
-    nc.open(m_filename, PISM_READONLY);
+    PIO nc(Model::m_grid->com, "netcdf3", m_filename, PISM_READONLY);
 
     std::map<std::string, IceModelVec2T*>::const_iterator k = m_fields.begin();
     while(k != m_fields.end()) {

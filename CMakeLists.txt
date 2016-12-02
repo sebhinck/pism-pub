@@ -40,6 +40,7 @@ option (Pism_USE_PARALLEL_NETCDF4 "Enables parallel NetCDF-4 I/O." OFF)
 option (Pism_USE_PNETCDF "Enables parallel NetCDF-3 I/O using PnetCDF." OFF)
 option (Pism_USE_PARALLEL_HDF5 "Enables parallel HDF5 I/O." OFF)
 option (Pism_USE_TAO "Use TAO in inverse solvers." ON)
+option (Pism_USE_JANSSON "Use Jansson to store configuration files." OFF)
 
 option (Pism_TEST_USING_VALGRIND "Add extra regression tests using valgrind" OFF)
 mark_as_advanced (Pism_TEST_USING_VALGRIND)
@@ -111,14 +112,16 @@ if (Pism_CODE_COVERAGE)
     set (CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -g -O0 ${CMAKE_CXX_FLAGS}" CACHE STRING "C++ compiler flags" FORCE)
   endif()
   add_custom_target (coverage_report
-    COMMAND lcov -d . -c -o pism-coverage.info
-    COMMAND lcov -q -r pism-coverage.info PISMPYTHON
+    # remove coverage data from src/pythonbindings
+    COMMAND lcov -d ${Pism_BINARY_DIR}/src/pythonbindings -z
+    COMMAND lcov -d ${Pism_BINARY_DIR}/src/vdt -z
+    COMMAND lcov -q -b ${Pism_SOURCE_DIR} --no-external -d . -c -o pism-coverage.info
     COMMAND genhtml -t "PISM Coverage report" -o cover --demangle-cpp --legend pism-coverage.info
     WORKING_DIRECTORY ${Pism_BINARY_DIR}
     VERBATIM
     )
   add_custom_target (coverage_reset
-    COMMAND lcov -d . -z
+    COMMAND lcov -d ${Pism_BINARY_DIR} -z
     WORKING_DIRECTORY ${Pism_BINARY_DIR}
     VERBATIM
     )
@@ -144,6 +147,10 @@ else()
 endif()
 mark_as_advanced (Pism_USE_TR1)
 
+if (Pism_USE_JANSSON)
+  add_definitions (-DPISM_USE_JANSSON=1)
+endif()
+
 # Look for libraries using find_package(...), etc. Run CMake with -DPism_LOOK_FOR_LIBRARIES=OFF
 # to build on systems that rely on the module system to set all compiler and linker flags.
 if (Pism_LOOK_FOR_LIBRARIES)
@@ -152,6 +159,10 @@ endif()
 
 # Set Pism_EXTERNAL_LIBS and include directories.
 pism_set_dependencies()
+
+# Make sure that PetscScalar is double (not complex<double>.)
+pism_check_petsc_scalar_type()
+pism_set_version_info()
 
 if (Pism_BUILD_PYTHON_BINDINGS)
   find_package(Python REQUIRED)
@@ -181,7 +192,7 @@ if (Pism_USE_TAO)
 endif()
 
 add_custom_target (etags
-  COMMAND find . -regextype posix-extended -regex ".*\\.(c|cc|h|hh)" | xargs etags
+  COMMAND find . -regextype posix-extended -regex ".*\\.(c|cc|h|hh)" | xargs etags --class-qualify --no-defines
   WORKING_DIRECTORY ${Pism_SOURCE_DIR}
   VERBATIM
 )

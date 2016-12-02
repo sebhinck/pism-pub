@@ -98,13 +98,6 @@ void IceRegionalModel::createVecs() {
                      ""); //  no standard name
   m_grid->variables().add(m_thk_stored);
 
-  // Note that the name of this variable (bmr_stored) does not matter: it is
-  // *never* read or written. We make a copy of bmelt instead.
-  m_bmr_stored.create(m_grid, "bmr_stored", WITH_GHOSTS, 2);
-  m_bmr_stored.set_attrs("internal",
-                       "time-independent basal melt rate in the no-model-strip",
-                       "m s-1", "");
-
   if (m_config->get_boolean("stress_balance.ssa.dirichlet_bc")) {
     // remove the bc_mask variable from the dictionary
     m_grid->variables().remove("bc_mask");
@@ -116,7 +109,7 @@ void IceRegionalModel::createVecs() {
 void IceRegionalModel::model_state_setup() {
 
   if (m_config->get_boolean("energy.temperature_based")) {
-    throw RuntimeError("pismo does not support the '-energy cold' mode.");
+    throw RuntimeError(PISM_ERROR_LOCATION, "pismo does not support the '-energy cold' mode.");
   }
 
   IceModel::model_state_setup();
@@ -134,9 +127,6 @@ void IceRegionalModel::model_state_setup() {
     double strip_width = m_config->get_double("regional.no_model_strip", "meters");
     set_no_model_strip(*m_grid, strip_width, m_no_model_mask);
   }
-
-  // Finally, save the basal melt rate at the beginning of the run.
-  m_bmr_stored.copy_from(m_basal_melt_rate);
 }
 
 void IceRegionalModel::allocate_stressbalance() {
@@ -153,24 +143,24 @@ void IceRegionalModel::allocate_stressbalance() {
 
   ShallowStressBalance *sliding = NULL;
   if (model == "none" || model == "sia") {
-    sliding = new ZeroSliding(m_grid, EC);
+    sliding = new ZeroSliding(m_grid);
   } else if (model == "prescribed_sliding" || model == "prescribed_sliding+sia") {
-    sliding = new PrescribedSliding(m_grid, EC);
+    sliding = new PrescribedSliding(m_grid);
   } else if (model == "ssa" || model == "ssa+sia") {
-    sliding = new SSAFD_Regional(m_grid, EC);
+    sliding = new SSAFD_Regional(m_grid);
   } else {
-    throw RuntimeError::formatted("invalid stress balance model: %s", model.c_str());
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid stress balance model: %s", model.c_str());
   }
 
   SSB_Modifier *modifier = NULL;
   if (model == "none" || model == "ssa" || model == "prescribed_sliding") {
-    modifier = new ConstantInColumn(m_grid, EC);
+    modifier = new ConstantInColumn(m_grid);
   } else if (model == "prescribed_sliding+sia" ||
              model == "ssa+sia" ||
              model == "sia") {
-    modifier = new SIAFD_Regional(m_grid, EC);
+    modifier = new SIAFD_Regional(m_grid);
   } else {
-    throw RuntimeError::formatted("invalid stress balance model: %s", model.c_str());
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid stress balance model: %s", model.c_str());
   }
 
   // ~StressBalance() will de-allocate sliding and modifier.
@@ -195,9 +185,10 @@ void IceRegionalModel::allocate_basal_yield_stress() {
     } else if (yield_stress_model == "mohr_coulomb") {
       m_basal_yield_stress_model = new RegionalDefaultYieldStress(m_grid, m_subglacial_hydrology);
     } else {
-      throw RuntimeError::formatted("yield stress model '%s' is not supported.",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "yield stress model '%s' is not supported.",
                                     yield_stress_model.c_str());
     }
+    m_submodels["basal yield stress"] = m_basal_yield_stress_model;
   }
 }
 
@@ -306,48 +297,6 @@ void IceRegionalModel::cell_interface_fluxes(bool dirichlet_bc,
     }
   }
   //
-}
-
-void IceRegionalModel::enthalpyAndDrainageStep(unsigned int *vertSacrCount,
-                                               double *liquifiedVol,
-                                               unsigned int *bulgeCount) {
-
-  IceModel::enthalpyAndDrainageStep(vertSacrCount, liquifiedVol, bulgeCount);
-
-  // note that the call above sets m_work3d; ghosts are comminucated later (in
-  // IceModel::energyStep()).
-  IceModelVec::AccessList list;
-  list.add(m_no_model_mask);
-  list.add(m_work3d);
-  list.add(m_ice_enthalpy);
-
-  for (Points p(*m_grid); p; p.next()) {
-    const int i = p.i(), j = p.j();
-
-    if (m_no_model_mask(i, j) < 0.5) {
-      continue;
-    }
-
-    double *new_enthalpy = m_work3d.get_column(i, j);
-    double *old_enthalpy = m_ice_enthalpy.get_column(i, j);
-
-    for (unsigned int k = 0; k < m_grid->Mz(); ++k) {
-      new_enthalpy[k] = old_enthalpy[k];
-    }
-  }
-
-  // set basal_melt_rate; ghosts are comminucated later (in IceModel::energyStep()).
-  list.add(m_basal_melt_rate);
-  list.add(m_bmr_stored);
-  for (Points p(*m_grid); p; p.next()) {
-    const int i = p.i(), j = p.j();
-
-    if (m_no_model_mask(i, j) < 0.5) {
-      continue;
-    }
-
-    m_basal_melt_rate(i, j) = m_bmr_stored(i, j);
-  }
 }
 
 } // end of namespace pism

@@ -79,16 +79,8 @@ int main(int argc, char *argv[]) {
   com = PETSC_COMM_WORLD;
 
   try {
-    verbosityLevelFromOptions();
     Context::Ptr ctx = btutest_context(com, "btutest");
     Logger::Ptr log = ctx->log();
-
-    log->message(2, "BTUTEST %s (test program for BedThermalUnit)\n",
-                 PISM_Revision);
-
-    if (options::Bool("-version", "stop after printing print PISM version")) {
-      return 0;
-    }
 
     std::string usage =
       "  btutest -Mbz NN -Lbz 1000.0 [-o OUT.nc -ys A -ye B -dt C -Mz D -Lz E]\n"
@@ -104,16 +96,14 @@ int main(int argc, char *argv[]) {
       "  -Lz            height of ice/atmospher box\n";
 
     // check required options
-    std::vector<std::string> required;
-    required.push_back("-Mbz");
+    std::vector<std::string> required(1, "-Mbz");
 
-    bool done = show_usage_check_req_opts(*log, "btutest", required, usage);
+    bool done = show_usage_check_req_opts(*log, "BTUTEST %s (test program for BedThermalUnit)",
+                                          required, usage);
     if (done) {
       return 0;
     }
 
-    log->message(2,
-                 "btutest tests BedThermalUnit and IceModelVec3BTU\n");
     Config::Ptr config = ctx->config();
 
     // Mbz and Lbz are used by the BedThermalUnit, not by IceGrid
@@ -126,10 +116,6 @@ int main(int argc, char *argv[]) {
 
     log->message(2,
                  "  initializing IceGrid from options ...\n");
-
-    options::String outname("-o", "Output file name", "unnamed_btutest.nc");
-
-    options::Real dt_years("-dt", "Time-step, in years", 1.0);
 
     GridParameters P(config);
     P.Mx = 3;
@@ -144,6 +130,10 @@ int main(int argc, char *argv[]) {
     IceGrid::Ptr grid(new IceGrid(ctx, P));
 
     ctx->time()->init(*log);
+
+    options::String outname("-o", "Output file name", "unnamed_btutest.nc");
+
+    options::Real dt_years("-dt", "Time-step, in years", 1.0);
 
     // allocate tools and IceModelVecs
     IceModelVec2S bedtoptemp, heat_flux_at_ice_base;
@@ -238,24 +228,18 @@ int main(int argc, char *argv[]) {
                  max_error, 100.0*max_error/FF, avg_error);
     log->message(1, "NUM ERRORS DONE\n");
 
-    std::set<std::string> vars;
-    btu->add_vars_to_output("big", vars); // "write everything you can"
-
-    PIO pio(grid->com, grid->ctx()->config()->get_string("output.format"));
+    PIO pio(grid->com, grid->ctx()->config()->get_string("output.format"),
+            outname, PISM_READWRITE_MOVE);
 
     std::string time_name = config->get_string("time.dimension_name");
-    pio.open(outname, PISM_READWRITE_MOVE);
     io::define_time(pio, time_name, ctx->time()->calendar(),
                     ctx->time()->CF_units_string(), ctx->unit_system());
     io::append_time(pio, time_name, ctx->time()->end());
 
-    btu->define_variables(vars, pio, PISM_DOUBLE);
-    btu->write_variables(vars, pio);
+    btu->write_model_state(pio);
 
     bedtoptemp.write(pio);
     heat_flux_at_ice_base.write(pio);
-
-    pio.close();
 
     log->message(2, "done.\n");
   }

@@ -102,15 +102,17 @@ static io::NCFile::Ptr create_backend(MPI_Comm com, string mode) {
   }
 }
 
-PIO::PIO(MPI_Comm c, const string &mode)
+PIO::PIO(MPI_Comm com, const std::string &backend, const std::string &filename, IO_Mode mode)
   : m_impl(new Impl) {
-  m_impl->com  = c;
-  m_impl->backend_type = mode;
-  m_impl->nc   = create_backend(m_impl->com, m_impl->backend_type);
+  m_impl->com          = com;
+  m_impl->backend_type = backend;
+  m_impl->nc           = create_backend(m_impl->com, m_impl->backend_type);
 
-  if (mode != "guess_mode" && not m_impl->nc) {
-    throw RuntimeError("failed to allocate an I/O backend (class PIO)");
+  if (backend != "guess_mode" && not m_impl->nc) {
+    throw RuntimeError(PISM_ERROR_LOCATION, "failed to allocate an I/O backend (class PIO)");
   }
+
+  this->open(filename, mode);
 }
 
 PIO::~PIO() {
@@ -159,17 +161,12 @@ void PIO::detect_mode(const string &filename) {
 
     if (m_impl->nc) {
       m_impl->backend_type = modes[j];
-#if (PISM_DEBUG==1)
-      verbPrintf(3, m_impl->com,
-                 "  - Using the %s backend to read from %s...\n",
-                 modes[j].c_str(), filename.c_str());
-#endif
       break;
     }
   }
 
   if (not m_impl->nc) {
-    throw RuntimeError("failed to allocate an I/O backend (class PIO)");
+    throw RuntimeError(PISM_ERROR_LOCATION, "failed to allocate an I/O backend (class PIO)");
   }
 }
 
@@ -215,7 +212,7 @@ void PIO::open(const string &filename, IO_Mode mode) {
       int old_fill;
       m_impl->nc->set_fill(PISM_NOFILL, old_fill);
     } else {
-      throw RuntimeError::formatted("invalid mode: %d", mode);
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid mode: %d", mode);
     }
   } catch (RuntimeError &e) {
     e.add_context("opening or creating \"" + filename + "\"");
@@ -339,7 +336,7 @@ void PIO::inq_var(const string &short_name, const string &std_name, bool &exists
             found_by_standard_name = true;
             result = name;
           } else {
-            throw RuntimeError::formatted("inconsistency in '%s': variables '%s' and '%s'\n"
+            throw RuntimeError::formatted(PISM_ERROR_LOCATION, "inconsistency in '%s': variables '%s' and '%s'\n"
                                           "have the same standard_name (%s)",
                                           inq_filename().c_str(), result.c_str(),
                                           name.c_str(), attribute.c_str());
@@ -437,7 +434,7 @@ AxisType PIO::inq_dimtype(const string &name,
     m_impl->nc->inq_varid(name, exists);
     
     if (not exists) {
-      throw RuntimeError("coordinate variable " + name + " is missing");
+      throw RuntimeError(PISM_ERROR_LOCATION, "coordinate variable " + name + " is missing");
     }
 
     axis          = get_att_text(name, "axis");
@@ -663,7 +660,7 @@ vector<double> PIO::get_att_double(const string &var_name, const string &att_nam
     if (att_type == PISM_CHAR) {
       string tmp = get_att_text(var_name, att_name);
 
-      throw RuntimeError::formatted("attribute %s is a string '%s'; expected a number or a list of numbers",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "attribute %s is a string '%s'; expected a number or a list of numbers",
                                     att_name.c_str(), tmp.c_str());
     } else {
       // In this case att_type might be PISM_NAT (if an attribute does not

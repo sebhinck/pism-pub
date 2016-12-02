@@ -29,7 +29,7 @@
 namespace pism {
 
 CalvingFrontRetreat::CalvingFrontRetreat(IceGrid::ConstPtr g, unsigned int mask_stencil_width)
-  : Component(g) {
+  : Component_TS(g) {
 
   m_tmp.create(m_grid, "temporary_storage", WITH_GHOSTS, 1);
   m_tmp.set_attrs("internal", "additional mass loss at points near the calving front",
@@ -47,7 +47,7 @@ CalvingFrontRetreat::CalvingFrontRetreat(IceGrid::ConstPtr g, unsigned int mask_
   m_surface_topography.create(m_grid, "m_surface_topography", WITH_GHOSTS, 1);
   m_surface_topography.set_attrs("internal", "surface topography", "m", "surface_altitude");
 
-  m_restrict_timestep = m_config->get_boolean("calving.eigen_calving.use_cfl");
+  m_restrict_timestep = m_config->get_boolean("calving.front_retreat.use_cfl");
 }
 
 CalvingFrontRetreat::~CalvingFrontRetreat() {
@@ -65,7 +65,8 @@ CalvingFrontRetreat::~CalvingFrontRetreat() {
  *
  * @return 0 on success
  */
-MaxTimestep CalvingFrontRetreat::max_timestep() {
+MaxTimestep CalvingFrontRetreat::max_timestep_impl(double t) const {
+  (void) t;
 
   if (not m_restrict_timestep) {
     return MaxTimestep();
@@ -83,15 +84,15 @@ MaxTimestep CalvingFrontRetreat::max_timestep() {
 
   m_mask.copy_from(mask);
 
-  compute_calving_rate(m_mask, m_horizontal_calving_rate);
+  IceModelVec2S &horizontal_calving_rate = m_tmp;
+  compute_calving_rate(m_mask, horizontal_calving_rate);
 
-  IceModelVec::AccessList list;
-  list.add(m_horizontal_calving_rate);
+  IceModelVec::AccessList list(horizontal_calving_rate);
 
   for (Points pt(*m_grid); pt; pt.next()) {
     const int i = pt.i(), j = pt.j();
 
-    const double C = m_horizontal_calving_rate(i, j);
+    const double C = horizontal_calving_rate(i, j);
 
     if (C > 0.0) {
       N_calving_cells   += 1;
@@ -146,8 +147,32 @@ void CalvingFrontRetreat::update(double dt,
   GeometryCalculator gc(*m_config);
   gc.compute_surface(sea_level, bed_topography, ice_thickness, m_surface_topography);
 
-  // copy mask to temporary storage to get more ghosts
-  m_mask.copy_from(mask);
+  // Make a copy of the mask with ghosts and with MASK_ICE_FREE_OCEAN outside the modeling domain.
+  // This is needed to avoid "wrapping around" in regional setups.
+  {
+    // copy mask to temporary storage to get more ghosts
+    m_mask.copy_from(mask);
+
+    IceModelVec::AccessList list(m_mask);
+
+    const int Mx = m_grid->Mx();
+    const int My = m_grid->My();
+
+    ParallelSection loop(m_grid->com);
+    try {
+      for (PointsWithGhosts p(*m_grid); p; p.next()) {
+        const int i = p.i(), j = p.j();
+
+        if (i < 0 or i >= Mx or j < 0 or j >= My) {
+          m_mask(i, j) = MASK_ICE_FREE_OCEAN;
+        }
+      }
+    } catch (...) {
+      loop.failed();
+    }
+    loop.check();
+  }
+
   // use mask with a wide stencil to compute the calving rate
   compute_calving_rate(m_mask, m_horizontal_calving_rate);
 
@@ -198,8 +223,8 @@ void CalvingFrontRetreat::update(double dt,
 
         // Find the number of neighbors to distribute to.
         //
-        // We consider floating cells grounded cells with the base below sea level. In other words,
-        // additional mass losses are distributed to shelf calving fronts and grounded marine
+        // We consider floating cells and grounded cells with the base below sea level. In other
+        // words, additional mass losses are distributed to shelf calving fronts and grounded marine
         // termini.
         int N = 0;
         {
@@ -210,7 +235,6 @@ void CalvingFrontRetreat::update(double dt,
             const Direction direction = dirs[n];
             const int M = M_star[direction];
 
-            // Note: this condition has to match the one in step 2 below.
             if (mask::floating_ice(M) or
                 (mask::grounded_ice(M) and bed_star[direction] < sea_level)) {
               N += 1;
@@ -270,11 +294,19 @@ void CalvingFrontRetreat::update(double dt,
   gc.compute_mask(sea_level, bed_topography, ice_thickness, mask);
 }
 
+void CalvingFrontRetreat::update_impl(double t, double dt) {
+  (void) t;
+  (void) dt;
+
+  throw RuntimeError::formatted(PISM_ERROR_LOCATION, "update(t, dt) is not implemented");
+}
+
+
 const IceModelVec2S& CalvingFrontRetreat::calving_rate() const {
   return m_horizontal_calving_rate;
 }
 
-CalvingRate::CalvingRate(CalvingFrontRetreat *m,
+CalvingRate::CalvingRate(const CalvingFrontRetreat *m,
                          const std::string &name,
                          const std::string &long_name)
   : Diag<CalvingFrontRetreat>(m) {

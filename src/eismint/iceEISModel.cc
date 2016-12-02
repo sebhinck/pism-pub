@@ -18,30 +18,31 @@
 
 #include <gsl/gsl_math.h>       // M_PI
 
-#include "base/iceModel.hh"
 #include "iceEISModel.hh"
+
+#include "base/util/Context.hh"
+#include "base/util/PISMConfigInterface.hh"
+#include "base/util/IceGrid.hh"
 
 #include "base/stressbalance/PISMStressBalance.hh"
 #include "base/stressbalance/ShallowStressBalance.hh"
 #include "base/stressbalance/sia/SIAFD.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/Context.hh"
-#include "base/util/PISMConfigInterface.hh"
-#include "base/util/PISMTime.hh"
-#include "base/util/error_handling.hh"
-#include "base/util/pism_options.hh"
+
 #include "coupler/ocean/POConstant.hh"
 #include "coupler/ocean/POInitialization.hh"
+
 #include "coupler/surface/PS_EISMINTII.hh"
 #include "coupler/surface/PSInitialization.hh"
+
 #include "earth/PISMBedDef.hh"
+
+#include "base/energy/BedThermalUnit.hh"
+#include "base/energy/utilities.hh"
 
 namespace pism {
 
 IceEISModel::IceEISModel(IceGrid::Ptr g, Context::Ptr context, char experiment)
   : IceModel(g, context), m_experiment(experiment) {
-  m_config->set_string("EISMINT_II_experiment", std::string(1, m_experiment));
-  m_config->set_string("EISMINT_II_experiment_doc", "EISMINT II experiment name");
 
   // the following flag must be here in constructor because
   // IceModel::createVecs() uses it non-polythermal methods; can be
@@ -83,12 +84,12 @@ void IceEISModel::allocate_stressbalance() {
 
   EnthalpyConverter::Ptr EC = m_ctx->enthalpy_converter();
 
-  ShallowStressBalance *my_stress_balance = new ZeroSliding(m_grid, EC);
-  SSB_Modifier *modifier = new SIAFD(m_grid, EC);
+  ShallowStressBalance *my_stress_balance = new ZeroSliding(m_grid);
+  SSB_Modifier *modifier = new SIAFD(m_grid);
 
   // ~StressBalance() will de-allocate my_stress_balance and modifier.
   m_stress_balance = new StressBalance(m_grid, my_stress_balance, modifier);
-
+  m_submodels["stress balance"] = m_stress_balance;
 }
 
 void IceEISModel::allocate_couplers() {
@@ -96,28 +97,33 @@ void IceEISModel::allocate_couplers() {
   // Climate will always come from intercomparison formulas.
   if (m_surface == NULL) {
     m_surface = new surface::InitializationHelper(m_grid, new surface::EISMINTII(m_grid, m_experiment));
+    m_submodels["surface process model"] = m_surface;
   }
 
   if (m_ocean == NULL) {
     m_ocean = new ocean::InitializationHelper(m_grid, new ocean::Constant(m_grid));
+    m_submodels["ocean model"] = m_ocean;
   }
 }
 
-void IceEISModel::generateTroughTopography(IceModelVec2S &result) {
+void generate_trough_topography(IceModelVec2S &result) {
   // computation based on code by Tony Payne, 6 March 1997:
   // http://homepages.vub.ac.be/~phuybrec/eismint/topog2.f
 
-  const double b0    = 1000.0;  // plateau elevation
-  const double L     = 750.0e3; // half-width of computational domain
-  const double w     = 200.0e3; // trough width
-  const double slope = b0/L;
-  const double dx61  = (2*L) / 60; // = 25.0e3
+  IceGrid::ConstPtr grid = result.get_grid();
+
+  const double
+    b0    = 1000.0,  // plateau elevation
+    L     = 750.0e3, // half-width of computational domain
+    w     = 200.0e3, // trough width
+    slope = b0 / L,
+    dx61  = (2.0 * L) / 60; // = 25.0e3
 
   IceModelVec::AccessList list(result);
-  for (Points p(*m_grid); p; p.next()) {
+  for (Points p(*grid); p; p.next()) {
     const int i = p.i(), j = p.j();
 
-    const double nsd = i * m_grid->dx(), ewd = j * m_grid->dy();
+    const double nsd = i * grid->dx(), ewd = j * grid->dy();
     if ((nsd >= (27 - 1) * dx61) && (nsd <= (35 - 1) * dx61) &&
         (ewd >= (31 - 1) * dx61) && (ewd <= (61 - 1) * dx61)) {
       result(i,j) = 1000.0 - std::max(0.0, slope * (ewd - L) * cos(M_PI * (nsd - L) / w));
@@ -127,30 +133,29 @@ void IceEISModel::generateTroughTopography(IceModelVec2S &result) {
   }
 }
 
-
-void IceEISModel::generateMoundTopography(IceModelVec2S &result) {
+void generate_mound_topography(IceModelVec2S &result) {
   // computation based on code by Tony Payne, 6 March 1997:
   // http://homepages.vub.ac.be/~phuybrec/eismint/topog2.f
+
+  IceGrid::ConstPtr grid = result.get_grid();
 
   const double slope = 250.0;
   const double w     = 150.0e3; // mound width
 
   IceModelVec::AccessList list(result);
-  for (Points p(*m_grid); p; p.next()) {
+  for (Points p(*grid); p; p.next()) {
     const int i = p.i(), j = p.j();
 
-    const double nsd = i * m_grid->dx(), ewd = j * m_grid->dy();
+    const double nsd = i * grid->dx(), ewd = j * grid->dy();
     result(i,j) = fabs(slope * sin(M_PI * ewd / w) + slope * cos(M_PI * nsd / w));
   }
 }
 
-
 void IceEISModel::initialize_2d() {
 
-  // initialize from EISMINT II formulas
   m_log->message(2,
-             "initializing variables from EISMINT II experiment %c formulas... \n",
-             m_experiment);
+                 "initializing variables from EISMINT II experiment %c formulas... \n",
+                 m_experiment);
 
   IceModelVec2S tmp;
   tmp.create(m_grid, "topg", WITHOUT_GHOSTS);
@@ -158,9 +163,9 @@ void IceEISModel::initialize_2d() {
   // set bed topography
   {
     if (m_experiment == 'I' or m_experiment == 'J') {
-      generateTroughTopography(tmp);
+      generate_trough_topography(tmp);
     } else if (m_experiment == 'K' or m_experiment == 'L') {
-      generateMoundTopography(tmp);
+      generate_mound_topography(tmp);
     } else {
       tmp.set(0.0);
     }
@@ -174,14 +179,7 @@ void IceEISModel::initialize_2d() {
     m_beddef->set_uplift(tmp);
   }
 
-  m_basal_melt_rate.set(0.0);
   m_ice_thickness.set(0.0); // start with zero ice
-}
-
-void IceEISModel::initialize_3d() {
-  // this IceModel bootstrap method should do right thing because of
-  // variable settings above and init of coupler above
-  putTempAtDepth();
 }
 
 } // end of namespace pism

@@ -60,13 +60,13 @@ InputOptions process_input_options(MPI_Comm com) {
 
   // get the index of the last record in the input file
   if (input_filename.is_set()) {
-    PIO input_file(com, "guess_mode");
-    unsigned int last_record = 0;
-
-    input_file.open(input_filename, PISM_READONLY);
+    PIO input_file(com, "guess_mode", input_filename, PISM_READONLY);
 
     // Find the index of the last record in the input file.
-    last_record = input_file.inq_nrecords() - 1;
+    unsigned int last_record = input_file.inq_nrecords();
+    if (last_record > 0) {
+      last_record -= 1;
+    }
 
     result.record = last_record;
   } else {
@@ -86,33 +86,46 @@ Component::~Component() {
   // empty
 }
 
-void Component::define_variables(const std::set<std::string> &vars, const PIO &nc,
-                                 IO_Type nctype) {
-  this->define_variables_impl(vars, nc, nctype);
-}
-
-void Component::add_vars_to_output(const std::string &keyword,
-                                   std::set<std::string> &result) {
-  this->add_vars_to_output_impl(keyword, result);
-}
-
-void Component::write_variables(const std::set<std::string> &vars, const PIO& nc) {
-  this->write_variables_impl(vars, nc);
-}
-
 void Component::get_diagnostics(std::map<std::string, Diagnostic::Ptr> &dict,
-                                std::map<std::string, TSDiagnostic::Ptr> &ts_dict) {
+                                std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const {
   this->get_diagnostics_impl(dict, ts_dict);
 }
 
 void Component::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                     std::map<std::string, TSDiagnostic::Ptr> &ts_dict) {
+                                     std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const {
   (void)dict;
   (void)ts_dict;
 }
 
 IceGrid::ConstPtr Component::grid() const {
   return m_grid;
+}
+
+/*! @brief Define model state variables in an output file. */
+/*!
+ * This is needed to allow defining all the variables in an output file before any data is written
+ * (an optimization needed to get decent performance writing NetCDF-3).
+ */
+void Component::define_model_state(const PIO &output) const {
+  this->define_model_state_impl(output);
+}
+
+/*! @brief Write model state variables to an output file. */
+void Component::write_model_state(const PIO &output) const {
+  // define variables, if needed (this is a no-op if they are already defined)
+  this->define_model_state(output);
+
+  this->write_model_state_impl(output);
+}
+
+/*! @brief The default (empty implementation). */
+void Component::define_model_state_impl(const PIO &output) const {
+  (void) output;
+}
+
+/*! @brief The default (empty implementation). */
+void Component::write_model_state_impl(const PIO &output) const {
+  (void) output;
 }
 
 /**
@@ -166,7 +179,7 @@ Component_TS::~Component_TS() {
   // empty
 }
 
-MaxTimestep Component_TS::max_timestep(double t) {
+MaxTimestep Component_TS::max_timestep(double t) const {
   return this->max_timestep_impl(t);
 }
 
@@ -195,7 +208,7 @@ void init_step(Component_TS &model, const Time& time) {
     max_dt = MaxTimestep(1.0);
   }
 
-  assert(max_dt.is_finite() == true);
+  assert(max_dt.finite() == true);
 
   model.update(now, max_dt.value());
 }

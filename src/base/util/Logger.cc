@@ -69,7 +69,8 @@ void Logger::message(int threshold, const std::string &buffer) const {
 }
 
 void Logger::message_impl(const char buffer[]) const {
-  verbPrintf(1, m_impl->com, buffer);
+  PetscErrorCode ierr = PetscFPrintf(m_impl->com, PETSC_STDOUT, buffer);
+  PISM_CHK(ierr, "PetscFPrintf");
 }
 
 void Logger::error(const char format[], ...) const {
@@ -106,9 +107,7 @@ Logger::Ptr logger_from_options(MPI_Comm com) {
   Logger::Ptr result(new Logger(com, 2));
 
   options::Integer verbosity("-verbose", "set logger verbosity threshold",
-                             getVerbosityLevel());
-
-  setVerbosityLevel(verbosity);
+                             result->get_threshold());
 
   result->set_threshold(verbosity);
 

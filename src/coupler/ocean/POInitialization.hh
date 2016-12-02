@@ -41,19 +41,17 @@ class InitializationHelper : public OceanModifier {
 public:
   InitializationHelper(IceGrid::ConstPtr g, OceanModel* in);
 protected:
+  void define_model_state_impl(const PIO &output) const;
+  void write_model_state_impl(const PIO &output) const;
 
   void update_impl(double t, double dt);
   void init_impl();
 
-  void melange_back_pressure_fraction_impl(IceModelVec2S &result);
-  void sea_level_elevation_impl(double &result);
-  void shelf_base_temperature_impl(IceModelVec2S &result);
-  void shelf_base_mass_flux_impl(IceModelVec2S &result);
+  void melange_back_pressure_fraction_impl(IceModelVec2S &result) const;
+  void sea_level_elevation_impl(double &result) const;
+  void shelf_base_temperature_impl(IceModelVec2S &result) const;
+  void shelf_base_mass_flux_impl(IceModelVec2S &result) const;
 
-  void write_variables_impl(const std::set<std::string> &vars, const PIO &nc);
-  void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result);
-  void define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
-                             IO_Type nctype);
 private:
   IceModelVec2S m_melange_back_pressure_fraction;
   IceModelVec2S m_shelf_base_temperature;

@@ -30,7 +30,7 @@
 #include "tests/exactTestsABCD.h"
 #include "tests/exactTestsFG.hh"
 #include "tests/exactTestH.h"
-#include "tests/exactTestL.h"
+#include "tests/exactTestL.hh"
 
 #include "base/util/error_handling.hh"
 #include "base/util/IceGrid.hh"
@@ -64,9 +64,19 @@ void Verification::init_impl() {
   update(m_grid->ctx()->time()->current(), 0);
 }
 
-MaxTimestep Verification::max_timestep_impl(double t) {
+void Verification::define_model_state_impl(const PIO &output) const {
+  m_climatic_mass_balance.define(output);
+  m_ice_surface_temp.define(output);
+}
+
+void Verification::write_model_state_impl(const PIO &output) const {
+  m_climatic_mass_balance.write(output);
+  m_ice_surface_temp.write(output);
+}
+
+MaxTimestep Verification::max_timestep_impl(double t) const {
   (void) t;
-  return MaxTimestep();
+  return MaxTimestep("verification surface model");
 }
 
 /** Initialize climate inputs of tests K and O.
@@ -154,7 +164,7 @@ void Verification::update_impl(PetscReal t, PetscReal dt) {
     update_V();
     break;
   default:
-    throw RuntimeError::formatted("Test %c is not implemented.", m_testname);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Test %c is not implemented.", m_testname);
   }
 
   // convert from [m second-1] to [kg m-2 s-1]
@@ -166,7 +176,7 @@ void Verification::update_impl(PetscReal t, PetscReal dt) {
  * @return 0 on success
  */
 void Verification::update_ABCDH(double time) {
-  double         A0, T0, H, accum;
+  double A0, T0, accum;
 
   double f = m_config->get_double("constants.ice.density") / m_config->get_double("bed_deformation.lithosphere_density");
 
@@ -200,10 +210,10 @@ void Verification::update_ABCDH(double time) {
         accum = exactD(time, r).M;
         break;
       case 'H':
-        exactH(f, time, r, &H, &accum);
+        accum = exactH(f, time, r).M;
         break;
       default:
-        throw RuntimeError::formatted("test must be A, B, C, D, or H, got %c",
+        throw RuntimeError::formatted(PISM_ERROR_LOCATION, "test must be A, B, C, D, or H, got %c",
                                       m_testname);
       }
       m_climatic_mass_balance(i, j) = accum;

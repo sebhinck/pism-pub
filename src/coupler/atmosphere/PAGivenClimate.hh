@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -30,22 +30,21 @@ class Given : public PGivenClimate<PAModifier,AtmosphereModel>
 public:
   Given(IceGrid::ConstPtr g);
   virtual ~Given();
-
-  virtual void init();
-
-  virtual void mean_precipitation(IceModelVec2S &result);
-  virtual void mean_annual_temp(IceModelVec2S &result); 
-  virtual void temp_snapshot(IceModelVec2S &result);
-
-  virtual void begin_pointwise_access();
-  virtual void end_pointwise_access();
-
-  virtual void init_timeseries(const std::vector<double> &ts);
-  virtual void temp_time_series(int i, int j, std::vector<double> &values);
-  virtual void precip_time_series(int i, int j, std::vector<double> &values);
 protected:
+  virtual void init_impl();
+
+  virtual void mean_precipitation_impl(IceModelVec2S &result) const;
+  virtual void mean_annual_temp_impl(IceModelVec2S &result) const;
+
+  virtual void begin_pointwise_access_impl() const;
+  virtual void end_pointwise_access_impl() const;
+
+  virtual void init_timeseries_impl(const std::vector<double> &ts) const;
+  virtual void temp_time_series_impl(int i, int j, std::vector<double> &values) const;
+  virtual void precip_time_series_impl(int i, int j, std::vector<double> &values) const;
+
   virtual void update_impl(double my_t, double my_dt);
-  IceModelVec2T *precipitation, *air_temp;
+  IceModelVec2T *m_precipitation, *m_air_temp;
 };
 
 } // end of namespace atmosphere

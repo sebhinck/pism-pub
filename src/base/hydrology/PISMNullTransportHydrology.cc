@@ -36,7 +36,7 @@ NullTransport::NullTransport(IceGrid::ConstPtr g)
   m_tillwat_decay_rate = m_config->get_double("hydrology.tillwat_decay_rate");
 
   if (m_tillwat_max < 0.0) {
-    throw RuntimeError("hydrology::NullTransport: hydrology_tillwat_max is negative.\n"
+    throw RuntimeError(PISM_ERROR_LOCATION, "hydrology::NullTransport: hydrology_tillwat_max is negative.\n"
                        "This is not allowed.");
   }
 
@@ -60,7 +60,7 @@ void NullTransport::init() {
   Hydrology::init();
 }
 
-MaxTimestep NullTransport::max_timestep_impl(double t) {
+MaxTimestep NullTransport::max_timestep_impl(double t) const {
   (void) t;
   if (m_diffuse_tillwat) {
     const double
@@ -70,20 +70,20 @@ MaxTimestep NullTransport::max_timestep_impl(double t) {
       T   = m_diffusion_time,
       K   = L * L / (2.0 * T);
 
-    return MaxTimestep(dx2 * dy2 / (2.0 * K * (dx2 + dy2)));
+    return MaxTimestep(dx2 * dy2 / (2.0 * K * (dx2 + dy2)), "null-transport hydrology");
   } else {
-    return MaxTimestep();
+    return MaxTimestep("null-transport hydrology");
   }
 }
 
 //! Set the transportable subglacial water thickness to zero; there is no tranport.
-void NullTransport::subglacial_water_thickness(IceModelVec2S &result) {
+void NullTransport::subglacial_water_thickness(IceModelVec2S &result) const {
   result.set(0.0);
 }
 
 
 //! Returns the (trivial) overburden pressure as the pressure of the non-existent transportable water, because this is the least harmful output if this is misused.
-void NullTransport::subglacial_water_pressure(IceModelVec2S &result) {
+void NullTransport::subglacial_water_pressure(IceModelVec2S &result) const {
   overburden_pressure(result);
 }
 

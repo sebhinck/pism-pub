@@ -81,8 +81,7 @@ void InitializationHelper::init_impl() {
     m_log->message(2, "* Reading effective ocean model outputs from '%s' for re-starting...\n",
                    opts.filename.c_str());
 
-    PIO file(m_grid->com, "guess_mode");
-    file.open(opts.filename, PISM_READONLY);
+    PIO file(m_grid->com, "guess_mode", opts.filename, PISM_READONLY);
     const unsigned int last_record = file.inq_nrecords() - 1;
 
     m_melange_back_pressure_fraction.read(file, last_record);
@@ -116,91 +115,46 @@ void InitializationHelper::init_impl() {
   // FIXME: fake "regridding" of sea level
 }
 
-void InitializationHelper::melange_back_pressure_fraction_impl(IceModelVec2S &result) {
+void InitializationHelper::melange_back_pressure_fraction_impl(IceModelVec2S &result) const {
   result.copy_from(m_melange_back_pressure_fraction);
 }
 
-void InitializationHelper::sea_level_elevation_impl(double &result) {
+void InitializationHelper::sea_level_elevation_impl(double &result) const {
   result = m_sea_level_elevation;
 }
 
-void InitializationHelper::shelf_base_temperature_impl(IceModelVec2S &result) {
+void InitializationHelper::shelf_base_temperature_impl(IceModelVec2S &result) const {
   result.copy_from(m_shelf_base_temperature);
 }
 
-void InitializationHelper::shelf_base_mass_flux_impl(IceModelVec2S &result) {
+void InitializationHelper::shelf_base_mass_flux_impl(IceModelVec2S &result) const {
   result.copy_from(m_shelf_base_mass_flux);
 }
 
-static bool in(const std::set<std::string> &S, const IceModelVec &vec) {
-  return set_contains(S, vec.get_name());
+
+void InitializationHelper::define_model_state_impl(const PIO &output) const {
+  m_melange_back_pressure_fraction.define(output);
+  m_shelf_base_mass_flux.define(output);
+  m_shelf_base_temperature.define(output);
+  m_melange_back_pressure_fraction.define(output);
+
+  io::define_timeseries(m_sea_level_metadata, output, PISM_DOUBLE, true);
+
+  m_input_model->define_model_state(output);
 }
 
-void InitializationHelper::define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
-                                                 IO_Type nctype) {
-  // make a copy of the set of variables so that we can modify it
-  std::set<std::string> list = vars;
+void InitializationHelper::write_model_state_impl(const PIO &output) const {
+  m_melange_back_pressure_fraction.write(output);
+  m_shelf_base_mass_flux.write(output);
+  m_shelf_base_temperature.write(output);
+  m_melange_back_pressure_fraction.write(output);
 
-  if (in(list, m_melange_back_pressure_fraction)) {
-    m_melange_back_pressure_fraction.define(nc, nctype);
-    list.erase(m_melange_back_pressure_fraction.get_name());
-  }
+  unsigned int t_start = output.inq_dimlen(m_sea_level_metadata.get_dimension_name()) - 1;
+  io::write_timeseries(output, m_sea_level_metadata, t_start, m_sea_level_elevation,
+                       PISM_DOUBLE);
 
-  if (in(list, m_shelf_base_mass_flux)) {
-    m_shelf_base_mass_flux.define(nc, nctype);
-    list.erase(m_shelf_base_mass_flux.get_name());
-  }
-
-  if (in(list, m_shelf_base_temperature)) {
-    m_shelf_base_temperature.define(nc, nctype);
-    list.erase(m_shelf_base_temperature.get_name());
-  }
-
-  if (set_contains(list, m_sea_level_metadata.get_name())) {
-    io::define_timeseries(m_sea_level_metadata, nc, PISM_DOUBLE, true);
-  }
-
-  m_input_model->define_variables(list, nc, nctype);
+  m_input_model->write_model_state(output);
 }
-
-void InitializationHelper::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-  // make a copy of the set of variables so that we can modify it
-  std::set<std::string> list = vars;
-
-  if (in(list, m_melange_back_pressure_fraction)) {
-    m_melange_back_pressure_fraction.write(nc);
-    list.erase(m_melange_back_pressure_fraction.get_name());
-  }
-
-  if (in(list, m_shelf_base_mass_flux)) {
-    m_shelf_base_mass_flux.write(nc);
-    list.erase(m_shelf_base_mass_flux.get_name());
-  }
-
-  if (in(list, m_shelf_base_temperature)) {
-    m_shelf_base_temperature.write(nc);
-    list.erase(m_shelf_base_temperature.get_name());
-  }
-
-  if (set_contains(list, m_sea_level_metadata.get_name())) {
-    unsigned int t_start = nc.inq_dimlen(m_sea_level_metadata.get_dimension_name()) - 1;
-    io::write_timeseries(nc, m_sea_level_metadata, t_start, m_sea_level_elevation, PISM_DOUBLE);
-  }
-
-  m_input_model->write_variables(list, nc);
-}
-
-void InitializationHelper::add_vars_to_output_impl(const std::string &keyword,
-                                                   std::set<std::string> &result) {
-  result.insert(m_melange_back_pressure_fraction.get_name());
-  result.insert(m_shelf_base_mass_flux.get_name());
-  result.insert(m_shelf_base_temperature.get_name());
-
-  result.insert(m_sea_level_metadata.get_name());
-
-  m_input_model->add_vars_to_output(keyword, result);
-}
-
 
 } // end of namespace ocean
 } // end of namespace pism

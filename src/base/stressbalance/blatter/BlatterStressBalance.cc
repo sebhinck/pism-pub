@@ -114,9 +114,8 @@ public:
   }
 };
 
-BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g,
-                                           EnthalpyConverter::Ptr e)
-  : ShallowStressBalance(g, e), m_min_thickness(10.0) {
+BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g)
+  : ShallowStressBalance(g), m_min_thickness(10.0) {
 
   Config::ConstPtr config = g->ctx()->config();
 
@@ -187,7 +186,7 @@ BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g,
   m_v_sigma.write_in_glaciological_units = false;
 
   {
-    rheology::FlowLawFactory ice_factory("stress_balance.blatter.", config, e);
+    rheology::FlowLawFactory ice_factory("stress_balance.blatter.", config, m_EC);
     ice_factory.remove(ICE_GOLDSBY_KOHLSTEDT);
 
     ice_factory.set_default(config->get_string("stress_balance.blatter.flow_law"));
@@ -220,7 +219,8 @@ void BlatterStressBalance::update(bool fast,
   (void) sea_level;
 
   if (fast) {
-    throw RuntimeError("'fast' mode not meaningful for BlatterStressBalance");
+    throw RuntimeError(PISM_ERROR_LOCATION,
+                       "'fast' mode not meaningful for BlatterStressBalance");
   }
 
   // setup
@@ -501,45 +501,20 @@ void BlatterStressBalance::compute_volumetric_strain_heating() {
   m_strain_heating.set(0.0);
 }
 
-void BlatterStressBalance::add_vars_to_output_impl(const std::string &keyword,
-                                                   std::set<std::string> &result) {
-  (void) keyword;
-
-  result.insert("u_sigma");
-  result.insert("v_sigma");
-}
-
 //! Defines requested couplings fields.
-void BlatterStressBalance::define_variables_impl(const std::set<std::string> &vars,
-                                                 const PIO &nc,
-                                                 IO_Type nctype) {
-  if (set_contains(vars, "u_sigma")) {
-    m_u_sigma.define(nc, nctype);
-  }
-
-  if (set_contains(vars, "v_sigma")) {
-    m_v_sigma.define(nc, nctype);
-  }
+void BlatterStressBalance::define_model_state_impl(const PIO &output) const {
+  m_u_sigma.define(output);
+  m_v_sigma.define(output);
 }
 
 //! Writes requested couplings fields to file.
-void BlatterStressBalance::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-
-  if (set_contains(vars, "u_sigma") or set_contains(vars, "v_sigma")) {
-    copy_velocity(FROM_SNES_STORAGE);
-  }
-
-  if (set_contains(vars, "u_sigma")) {
-    m_u_sigma.write(nc);
-  }
-
-  if (set_contains(vars, "v_sigma")) {
-    m_v_sigma.write(nc);
-  }
+void BlatterStressBalance::write_model_state_impl(const PIO &output) const {
+  m_u_sigma.write(output);
+  m_v_sigma.write(output);
 }
 
 //! \brief Produce a report string for the standard output.
-std::string BlatterStressBalance::stdout_report() {
+std::string BlatterStressBalance::stdout_report() const {
   return "";
 }
 

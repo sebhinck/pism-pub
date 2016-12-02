@@ -17,34 +17,34 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef BEDROCKSYSTEM_H
-#define BEDROCKSYSTEM_H
+#ifndef AGECOLUMNSYSTEM_H
+#define AGECOLUMNSYSTEM_H
+
+#include "base/columnSystem.hh"
 
 namespace pism {
-namespace energy {
 
-class BedrockSystem : public columnSystemCtx {
+//! Tridiagonal linear system for vertical column of age (pure advection) problem.
+class AgeColumnSystem : public columnSystemCtx {
 public:
-  BedrockSystem(const std::string &prefix,
-                double dt, double dz,
-                const Config &config,
-                const IceModelVec3Custom &temp);
-  ~BedrockSystem();
+  AgeColumnSystem(const std::vector<double>& storage_grid,
+                  const std::string &my_prefix,
+                  double dx, double dy, double dt,
+                  const IceModelVec3 &age,
+                  const IceModelVec3 &u3,
+                  const IceModelVec3 &v3,
+                  const IceModelVec3 &w3);
 
-  void init(int i, int j);
+  void init(int i, int j, double thickness);
 
-  void set_top_surface_dirichlet(double T);
-  void set_bottom_surface_neumann(double dT);
-  void set_bottom_surface_heat_flux(double Q);
-
-  void solve(std::vector<double> &result);
-
+  void solve(std::vector<double> &x);
 protected:
-  double m_D_bottom, m_U_bottom, m_B_bottom;
-  double m_D_top, m_U_top, m_B_top;
+  const IceModelVec3 &m_age3;
+  double m_nu;
+  std::vector<double> m_A, m_A_n, m_A_e, m_A_s, m_A_w;
 };
 
-} // end of namespace energy
 } // end of namespace pism
 
-#endif /* BEDROCKSYSTEM_H */
+
+#endif /* AGECOLUMNSYSTEM_H */

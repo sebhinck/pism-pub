@@ -45,14 +45,14 @@ public:
   }
 
 protected:
-  virtual MaxTimestep max_timestep_impl(double t) {
+  virtual MaxTimestep max_timestep_impl(double t) const {
     // "Periodize" the climate:
     t = Mod::m_grid->ctx()->time()->mod(t - m_bc_reference_time, m_bc_period);
 
     MaxTimestep input_max_dt = Mod::m_input_model->max_timestep(t);
     MaxTimestep surface_max_dt = m_reference_surface.max_timestep(t);
 
-    if (input_max_dt.is_finite()) {
+    if (input_max_dt.finite()) {
       return std::min(surface_max_dt, input_max_dt);
     } else {
       return surface_max_dt;
@@ -101,7 +101,7 @@ protected:
     m_temp_lapse_rate = T_lapse_rate;
 
     if (not file.is_set()) {
-      throw RuntimeError::formatted("command-line option %s_file is required.",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "command-line option %s_file is required.",
                                     m_option_prefix.c_str());
     }
 
@@ -112,7 +112,7 @@ protected:
     }
 
     if (period.value() < 0.0) {
-      throw RuntimeError::formatted("invalid %s_period %d (period length cannot be negative)",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid %s_period %d (period length cannot be negative)",
                                     m_option_prefix.c_str(), period.value());
     }
     m_bc_period = (unsigned int)period;
@@ -121,8 +121,7 @@ protected:
       unsigned int buffer_size = (unsigned int) Mod::m_config->get_double("climate_forcing.buffer_size"),
         ref_surface_n_records = 1;
 
-      PIO nc(g->com, "netcdf3");
-      nc.open(file, PISM_READONLY);
+      PIO nc(g->com, "netcdf3", file, PISM_READONLY);
       ref_surface_n_records = nc.inq_nrecords("usurf", "surface_altitude",
                                               Mod::m_sys);
       nc.close();
@@ -135,7 +134,7 @@ protected:
       }
 
       if (ref_surface_n_records == 0) {
-        throw RuntimeError::formatted("can't find reference surface elevation (usurf) in %s.\n",
+        throw RuntimeError::formatted(PISM_ERROR_LOCATION, "can't find reference surface elevation (usurf) in %s.\n",
                                       file->c_str());
       }
 
@@ -154,32 +153,29 @@ protected:
     m_reference_surface.init(file, m_bc_period, m_bc_reference_time);
   }
 
-  void lapse_rate_correction(IceModelVec2S &result, double lapse_rate) {
+  void lapse_rate_correction(IceModelVec2S &result, double lapse_rate) const {
     if (fabs(lapse_rate) < 1e-12) {
       return;
     }
 
     const IceModelVec2S
-      *surface = Mod::m_grid->variables().get_2d_scalar("surface_altitude"),
-      *thk     = Mod::m_grid->variables().get_2d_scalar("land_ice_thickness");
+      &surface = *Mod::m_grid->variables().get_2d_scalar("surface_altitude");
 
     IceModelVec::AccessList list;
-    list.add(*thk);
-    list.add(*surface);
+    list.add(surface);
     list.add(m_reference_surface);
     list.add(result);
 
     for (Points p(*Mod::m_grid); p; p.next()) {
       const int i = p.i(), j = p.j();
 
-      if ((*thk)(i,j) > 0) {
-        const double correction = lapse_rate * ((*surface)(i,j) - m_reference_surface(i,j));
-        result(i,j) -= correction;
-      }
+      result(i, j) -= lapse_rate * (surface(i,j) - m_reference_surface(i, j));
     }
   }
 protected:
-  IceModelVec2T m_reference_surface;
+  // "mutable" is needed here because some methods (average, interp) change the state of an
+  // "IceModelVec2T"
+  mutable IceModelVec2T m_reference_surface;
   unsigned int m_bc_period;
   double m_bc_reference_time,          // in seconds
     m_temp_lapse_rate;

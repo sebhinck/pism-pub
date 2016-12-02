@@ -29,7 +29,6 @@ set(PISMUTIL_SRC
   base/util/Mask.cc
   base/util/VariableMetadata.cc
   base/util/PISMConfig.cc
-  base/util/ConfigJSON.cc
   base/util/PISMConfigInterface.cc
   base/util/PISMComponent.cc
   base/util/PISMTime.cc
@@ -63,6 +62,10 @@ set(PISMUTIL_SRC
 # PISM Revision string
 set_source_files_properties (base/pism_revision.cc
   PROPERTIES COMPILE_FLAGS -DPISM_REVISION='\"${Pism_REVISION_TAG}\"')
+
+if(Pism_USE_JANSSON)
+  list(APPEND PISMUTIL_SRC base/util/ConfigJSON.cc)
+endif()
 
 if(Pism_USE_TAO)
   list(APPEND PISMUTIL_SRC base/util/petscwrappers/Tao.cc)
@@ -109,17 +112,24 @@ add_custom_target (touch_pism_revision
 add_library (pism
   base/pism_signal.c
   base/columnSystem.cc
+  base/age/AgeModel.cc
+  base/energy/utilities.cc
+  base/energy/EnergyModel.cc
+  base/energy/DummyEnergyModel.cc
+  base/energy/EnthalpyModel.cc
+  base/energy/TemperatureModel.cc
   base/energy/BedThermalUnit.cc
   base/energy/BTU_Full.cc
   base/energy/BTU_Minimal.cc
   base/energy/enthSystem.cc
   base/energy/tempSystem.cc
+  base/energy/bootstrapping.cc
+  base/timestepping.cc
   base/iMadaptive.cc
-  base/iMage.cc
+  base/age/AgeColumnSystem.cc
   base/iMbootstrap.cc
   base/iMcalving.cc
   base/iMenergy.cc
-  base/iMenthalpy.cc
   base/iMfractures.cc
   base/iMgeometry.cc
   base/grounded_cell_fraction.cc
@@ -128,7 +138,6 @@ add_library (pism
   base/iMoptions.cc
   base/iMpartgrid.cc
   base/iMreport.cc
-  base/iMtemp.cc
   base/iMtimeseries.cc
   base/iMutil.cc
   base/iMcell_areas.cc
@@ -168,8 +177,11 @@ add_library (pism
 target_link_libraries (pism ${Pism_EXTERNAL_LIBS})
 add_dependencies (pism pism_config)
 add_dependencies (pism touch_pism_revision)
-if (Pism_BUILD_JANSSON)
-  add_dependencies (pism pism_jansson)
+
+if (Pism_USE_JANSSON)
+  if (Pism_BUILD_JANSSON)
+    add_dependencies (pism pism_jansson)
+  endif()
 endif()
 
 # Bed deformation models.
@@ -193,6 +205,7 @@ set_source_files_properties (base/util/pism_default_config.cc
 
 # Verification tests.
 add_library (pismverif OBJECT
+  verif/TemperatureModel_Verification.cc
   verif/iCMthermo.cc
   verif/iceCompModel.cc
   verif/PSVerification.cc
@@ -200,7 +213,7 @@ add_library (pismverif OBJECT
   verif/tests/exactTestH.c
   verif/tests/exactTestK.c
   verif/tests/exactTestO.c
-  verif/tests/exactTestL.c
+  verif/tests/exactTestL.cc
   verif/tests/exactTestsABCD.c
   verif/tests/exactTestsFG.cc
   verif/tests/exactTestsIJ.c
@@ -252,25 +265,7 @@ install (FILES
   DESTINATION ${Pism_SHARE_DIR})
 
 # miscellaneous executables needed by software tests
-add_executable (flowlaw_test software_tests/flowlaw_test.cc)
-target_link_libraries (flowlaw_test pism)
-install (TARGETS flowlaw_test RUNTIME DESTINATION ${Pism_BIN_DIR})
-
-add_executable (bedrough_test software_tests/bedrough_test.cc)
-target_link_libraries (bedrough_test pism)
-install (TARGETS bedrough_test RUNTIME DESTINATION ${Pism_BIN_DIR})
-
 if (Pism_BUILD_EXTRA_EXECS)
-  set (EXTRA_EXECS simpleH simpleI simpleJ simpleL)
-  foreach (EXEC ${EXTRA_EXECS})
-    add_executable (${EXEC} verif/tests/${EXEC}.c)
-    target_link_libraries (${EXEC} pism)
-  endforeach (EXEC)
-
-  add_executable (tryLCbd earth/tryLCbd.cc)
-  target_link_libraries (tryLCbd pism)
-  list (APPEND EXTRA_EXECS tryLCbd)
-
   add_executable (btutest base/energy/btutest.cc)
   target_link_libraries (btutest pism)
   list (APPEND EXTRA_EXECS btutest)
@@ -284,8 +279,20 @@ endif (Pism_BUILD_EXTRA_EXECS)
 
 
 # ------------ Header Files
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/ DESTINATION include
-          FILES_MATCHING PATTERN "*.hh")
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/
+  DESTINATION include/pism
+  FILES_MATCHING
+  PATTERN "*.hh"
+  PATTERN "*.h"
+  PATTERN "calcalcs" EXCLUDE
+  PATTERN "pismmerge" EXCLUDE
+  PATTERN "pythonbindings" EXCLUDE
+  PATTERN "vdt" EXCLUDE
+  PATTERN "doc" EXCLUDE
+  PATTERN "figs" EXCLUDE
+  PATTERN "ssa/tests" EXCLUDE
+  PATTERN "verif/tests/fortran" EXCLUDE
+  )
 
 add_subdirectory (calcalcs)
 add_subdirectory (base/rheology)

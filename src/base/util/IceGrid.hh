@@ -38,6 +38,8 @@ class System;
 class Vars;
 class Logger;
 
+class MappingInfo;
+
 typedef enum {UNKNOWN = 0, EQUAL, QUADRATIC} SpacingType;
 typedef enum {NONE = 0, NOT_PERIODIC = 0, X_PERIODIC = 1, Y_PERIODIC = 2, XY_PERIODIC = 3} Periodicity;
 
@@ -265,6 +267,9 @@ public:
   double x0() const;
   double y0() const;
 
+  const MappingInfo& get_mapping_info() const;
+  void set_mapping_info(const MappingInfo &info);
+
   double dz_min() const;
   double dz_max() const;
 
@@ -281,13 +286,6 @@ public:
 private:
   struct Impl;
   Impl *m_impl;
-
-  void set_ownership_ranges(const std::vector<unsigned int> &procs_x,
-                            const std::vector<unsigned int> &procs_y);
-
-  void compute_horizontal_coordinates();
-
-  petsc::DM::Ptr create_dm(int da_dof, int stencil_width) const;
 
   // Hide copy constructor / assignment operator.
   IceGrid(const IceGrid &);

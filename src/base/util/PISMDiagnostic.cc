@@ -29,6 +29,7 @@ Diagnostic::Diagnostic(IceGrid::ConstPtr g)
   : m_grid(g), m_sys(g->ctx()->unit_system()), m_config(g->ctx()->config()) {
   m_output_datatype = PISM_FLOAT;
   m_dof = 1;
+  m_fill_value = m_config->get_double("output.fill_value");
 }
 
 Diagnostic::~Diagnostic() {
@@ -82,7 +83,7 @@ void Diagnostic::set_attrs(const std::string &long_name,
                            const std::string &glaciological_units,
                            int N) {
   if (N >= m_dof) {
-    throw RuntimeError::formatted("N (%d) >= m_dof (%d)", N, m_dof);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "N (%d) >= m_dof (%d)", N, m_dof);
   }
 
   m_vars[N].set_string("pism_intent", "diagnostic");

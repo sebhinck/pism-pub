@@ -48,7 +48,7 @@ SeaRISEGreenland::SeaRISEGreenland(IceGrid::ConstPtr g)
 SeaRISEGreenland::~SeaRISEGreenland() {
 }
 
-void SeaRISEGreenland::init() {
+void SeaRISEGreenland::init_impl() {
 
   m_t = m_dt = GSL_NAN;  // every re-init restarts the clock
 
@@ -73,20 +73,20 @@ void SeaRISEGreenland::init() {
                                true, /* do regrid */
                                0 /* start (irrelevant) */);
   } else {
-    YearlyCycle::init();
+    YearlyCycle::init_impl();
   }
 }
 
-void SeaRISEGreenland::precip_time_series(int i, int j, std::vector<double> &result) {
+void SeaRISEGreenland::precip_time_series_impl(int i, int j, std::vector<double> &result) const {
 
   for (unsigned int k = 0; k < m_ts_times.size(); k++) {
     result[k] = m_precipitation(i,j);
   }
 }
 
-MaxTimestep SeaRISEGreenland::max_timestep_impl(double t) {
+MaxTimestep SeaRISEGreenland::max_timestep_impl(double t) const {
   (void) t;
-  return MaxTimestep();
+  return MaxTimestep("atmosphere searise_greenland");
 }
 
 //! \brief Updates mean annual and mean July near-surface air temperatures.
@@ -120,12 +120,12 @@ void SeaRISEGreenland::update_impl(double my_t, double my_dt) {
     &lon_degE = *m_grid->variables().get_2d_scalar("longitude");
 
   if (lat_degN.metadata().has_attribute("missing_at_bootstrap")) {
-    throw RuntimeError("latitude variable was missing at bootstrap;\n"
+    throw RuntimeError(PISM_ERROR_LOCATION, "latitude variable was missing at bootstrap;\n"
                        "SeaRISE-Greenland atmosphere model depends on latitude and would return nonsense!");
   }
 
   if (lon_degE.metadata().has_attribute("missing_at_bootstrap")) {
-    throw RuntimeError("longitude variable was missing at bootstrap;\n"
+    throw RuntimeError(PISM_ERROR_LOCATION, "longitude variable was missing at bootstrap;\n"
                        "SeaRISE-Greenland atmosphere model depends on longitude and would return nonsense!");
   }
 

@@ -137,33 +137,18 @@ void Distributed::init_bwp() {
 }
 
 
-void Distributed::add_vars_to_output_impl(const std::string &keyword,
-                                                   std::set<std::string> &result) {
-  Routing::add_vars_to_output_impl(keyword, result);
-  result.insert("bwp");
+void Distributed::define_model_state_impl(const PIO &output) const {
+  Routing::define_model_state_impl(output);
+  m_P.define(output);
 }
 
-
-void Distributed::define_variables_impl(const std::set<std::string> &vars,
-                                                 const PIO &nc, IO_Type nctype) {
-  Routing::define_variables_impl(vars, nc, nctype);
-  if (set_contains(vars, "bwp")) {
-    m_P.define(nc, nctype);
-  }
+void Distributed::write_model_state_impl(const PIO &output) const {
+  Routing::write_model_state_impl(output);
+  m_P.write(output);
 }
-
-
-void Distributed::write_variables_impl(const std::set<std::string> &vars,
-                                                const PIO &nc) {
-  Routing::write_variables_impl(vars, nc);
-  if (set_contains(vars, "bwp")) {
-    m_P.write(nc);
-  }
-}
-
 
 void Distributed::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                                std::map<std::string, TSDiagnostic::Ptr> &ts_dict) {
+                                                std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const {
   // bwat is state
   // bwp is state
   dict["bwprel"]           = Diagnostic::Ptr(new Hydrology_bwprel(this));
@@ -187,7 +172,7 @@ void Distributed::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &d
 
 
 //! Copies the P state variable which is the modeled water pressure.
-void Distributed::subglacial_water_pressure(IceModelVec2S &result) {
+void Distributed::subglacial_water_pressure(IceModelVec2S &result) const {
   result.copy_from(m_P);
 }
 
@@ -210,7 +195,7 @@ void Distributed::check_P_bounds(bool enforce_upper) {
       const int i = p.i(), j = p.j();
 
       if (m_P(i,j) < 0.0) {
-        throw RuntimeError::formatted("disallowed negative subglacial water pressure\n"
+        throw RuntimeError::formatted(PISM_ERROR_LOCATION, "disallowed negative subglacial water pressure\n"
                                       "P = %.6f Pa at (i,j)=(%d,%d)",
                                       m_P(i, j), i, j);
       }
@@ -218,7 +203,7 @@ void Distributed::check_P_bounds(bool enforce_upper) {
       if (enforce_upper) {
         m_P(i,j) = std::min(m_P(i,j), m_Pover(i,j));
       } else if (m_P(i,j) > m_Pover(i,j) + 0.001) {
-        throw RuntimeError::formatted("subglacial water pressure P = %.16f Pa exceeds\n"
+        throw RuntimeError::formatted(PISM_ERROR_LOCATION, "subglacial water pressure P = %.16f Pa exceeds\n"
                                       "overburden pressure Po = %.16f Pa at (i,j)=(%d,%d)",
                                       m_P(i, j), m_Pover(i, j), i, j);
       }
@@ -499,7 +484,7 @@ void Distributed::update_impl(double icet, double icedt) {
 }
 
 
-Distributed_hydrovelbase_mag::Distributed_hydrovelbase_mag(Distributed *m)
+Distributed_hydrovelbase_mag::Distributed_hydrovelbase_mag(const Distributed *m)
   : Diag<Distributed>(m) {
   m_vars.push_back(SpatialVariableMetadata(m_sys,
                                      "hydrovelbase_mag"));

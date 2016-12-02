@@ -33,21 +33,7 @@ namespace pism {
 namespace ocean {
 
 PIK::PIK(IceGrid::ConstPtr g)
-  : OceanModel(g),
-    m_shelfbmassflux(m_sys, "shelfbmassflux"),
-    m_shelfbtemp(m_sys, "shelfbtemp")
-{
-  m_shelfbmassflux.set_string("pism_intent", "climate_state");
-  m_shelfbmassflux.set_string("long_name",
-                            "ice mass flux from ice shelf base (positive flux is loss from ice shelf)");
-  m_shelfbmassflux.set_string("units", "kg m-2 s-1");
-  m_shelfbmassflux.set_string("glaciological_units", "kg m-2 year-1");
-
-  m_shelfbtemp.set_string("pism_intent", "climate_state");
-  m_shelfbtemp.set_string("long_name",
-                        "absolute temperature at ice shelf base");
-  m_shelfbtemp.set_string("units", "Kelvin");
-
+  : OceanModel(g) {
   m_meltfactor = m_config->get_double("ocean.pik_melt_factor");
 }
 
@@ -68,9 +54,9 @@ void PIK::init_impl() {
                              m_meltfactor);
 }
 
-MaxTimestep PIK::max_timestep_impl(double t) {
+MaxTimestep PIK::max_timestep_impl(double t) const {
   (void) t;
-  return MaxTimestep();
+  return MaxTimestep("ocean PIK");
 }
 
 void PIK::update_impl(double my_t, double my_dt) {
@@ -78,11 +64,11 @@ void PIK::update_impl(double my_t, double my_dt) {
   m_dt = my_dt;
 }
 
-void PIK::sea_level_elevation_impl(double &result) {
+void PIK::sea_level_elevation_impl(double &result) const {
   result = m_sea_level;
 }
 
-void PIK::shelf_base_temperature_impl(IceModelVec2S &result) {
+void PIK::shelf_base_temperature_impl(IceModelVec2S &result) const {
   const double
     T0          = m_config->get_double("constants.fresh_water.melting_point_temperature"), // K
     beta_CC     = m_config->get_double("constants.ice.beta_Clausius_Clapeyron"),
@@ -106,7 +92,7 @@ void PIK::shelf_base_temperature_impl(IceModelVec2S &result) {
 /*!
  * Assumes that mass flux is proportional to the shelf-base heat flux.
  */
-void PIK::shelf_base_mass_flux_impl(IceModelVec2S &result) {
+void PIK::shelf_base_mass_flux_impl(IceModelVec2S &result) const {
   const double
     L                 = m_config->get_double("constants.fresh_water.latent_heat_of_fusion"),
     sea_water_density = m_config->get_double("constants.sea_water.density"),
@@ -148,51 +134,6 @@ void PIK::shelf_base_mass_flux_impl(IceModelVec2S &result) {
 
     // convert from [m s-1] to [kg m-2 s-1]:
     result(i,j) *= ice_density;
-  }
-}
-
-void PIK::add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result) {
-  if (keyword == "medium" || keyword == "big" || keyword == "big_2d") {
-    result.insert("shelfbtemp");
-    result.insert("shelfbmassflux");
-  }
-}
-
-void PIK::define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
-                                          IO_Type nctype) {
-  std::string order = m_config->get_string("output.variable_order");
-
-  if (set_contains(vars, "shelfbtemp")) {
-    io::define_spatial_variable(m_shelfbtemp, *m_grid, nc, nctype, order, true);
-  }
-
-  if (set_contains(vars, "shelfbmassflux")) {
-    io::define_spatial_variable(m_shelfbmassflux, *m_grid, nc, nctype, order, true);
-  }
-}
-
-void PIK::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-  IceModelVec2S tmp;
-
-  if (set_contains(vars, "shelfbtemp")) {
-    if (not tmp.was_created()) {
-      tmp.create(m_grid, "tmp", WITHOUT_GHOSTS);
-    }
-
-    tmp.metadata() = m_shelfbtemp;
-    shelf_base_temperature(tmp);
-    tmp.write(nc);
-  }
-
-  if (set_contains(vars, "shelfbmassflux")) {
-    if (!tmp.was_created()) {
-      tmp.create(m_grid, "tmp", WITHOUT_GHOSTS);
-    }
-
-    tmp.metadata() = m_shelfbmassflux;
-    tmp.write_in_glaciological_units = true;
-    shelf_base_mass_flux(tmp);
-    tmp.write(nc);
   }
 }
 

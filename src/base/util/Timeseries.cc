@@ -62,6 +62,14 @@ void Timeseries::set_bounds_units() {
   m_bounds.set_string("glaciological_units", m_dimension.get_string("glaciological_units"));
 }
 
+bool Timeseries::get_use_bounds() const {
+  return m_use_bounds;
+}
+
+void Timeseries::set_use_bounds(bool flag) {
+  m_use_bounds = flag;
+}
+
 
 //! Read timeseries data from a NetCDF file `filename`.
 void Timeseries::read(const PIO &nc, const Time &time_manager, const Logger &log) {
@@ -75,7 +83,7 @@ void Timeseries::read(const PIO &nc, const Time &time_manager, const Logger &log
              exists, name_found, found_by_standard_name);
 
   if (!exists) {
-    throw RuntimeError::formatted("Can't find '%s' ('%s') in '%s'.\n",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Can't find '%s' ('%s') in '%s'.\n",
                                   name().c_str(), standard_name.c_str(),
                                   nc.inq_filename().c_str());
   }
@@ -83,7 +91,7 @@ void Timeseries::read(const PIO &nc, const Time &time_manager, const Logger &log
   dims = nc.inq_vardims(name_found);
 
   if (dims.size() != 1) {
-    throw RuntimeError::formatted("Variable '%s' in '%s' depends on %d dimensions,\n"
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Variable '%s' in '%s' depends on %d dimensions,\n"
                                   "but a time-series variable can only depend on 1 dimension.",
                                   name().c_str(),
                                   nc.inq_filename().c_str(),
@@ -104,7 +112,7 @@ void Timeseries::read(const PIO &nc, const Time &time_manager, const Logger &log
     }
   }
   if (!is_increasing) {
-    throw RuntimeError::formatted("dimension '%s' has to be strictly increasing (read from '%s').",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "dimension '%s' has to be strictly increasing (read from '%s').",
                                   tmp_dim.get_name().c_str(), nc.inq_filename().c_str());
   }
 
@@ -127,7 +135,7 @@ void Timeseries::read(const PIO &nc, const Time &time_manager, const Logger &log
   io::read_timeseries(nc, m_variable, time_manager, log, m_values);
 
   if (m_time.size() != m_values.size()) {
-    throw RuntimeError::formatted("variables %s and %s in %s have different numbers of values.",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "variables %s and %s in %s have different numbers of values.",
                                   m_dimension.get_name().c_str(),
                                   m_variable.get_name().c_str(),
                                   nc.inq_filename().c_str());
@@ -162,13 +170,12 @@ void Timeseries::report_range(const Logger &log) {
 }
 
 //! Write timeseries data to a NetCDF file `filename`.
-void Timeseries::write(const PIO &nc) {
+void Timeseries::write(const PIO &nc) const {
   // write the dimensional variable; this call should go first
   io::write_timeseries(nc, m_dimension, 0, m_time);
   io::write_timeseries(nc, m_variable, 0, m_values);
 
   if (m_use_bounds) {
-    set_bounds_units();
     io::write_time_bounds(nc, m_bounds, 0, m_time_bounds);
   }
 }
@@ -192,11 +199,11 @@ void Timeseries::scale(double scaling_factor) {
   Uses time bounds if present (interpreting data as piecewise-constant) and
   uses linear interpolation otherwise.
  */
-double Timeseries::operator()(double t) {
+double Timeseries::operator()(double t) const {
 
   // piecewise-constant case:
   if (m_use_bounds) {
-    std::vector<double>::iterator j;
+    std::vector<double>::const_iterator j;
 
     j = lower_bound(m_time_bounds.begin(), m_time_bounds.end(), t); // binary search
 
@@ -211,7 +218,7 @@ double Timeseries::operator()(double t) {
     }
 
     if (i % 2 == 0) {
-      throw RuntimeError::formatted("time bounds array in %s does not represent continguous time intervals.\n"
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "time bounds array in %s does not represent continguous time intervals.\n"
                                     "(PISM was trying to compute %s at time %3.3f seconds.)",
                                     m_bounds.get_name().c_str(), name().c_str(), t);
     }
@@ -220,7 +227,7 @@ double Timeseries::operator()(double t) {
   }
 
   // piecewise-linear case:
-  std::vector<double>::iterator end = m_time.end(), j;
+  std::vector<double>::const_iterator end = m_time.end(), j;
   
   j = lower_bound(m_time.begin(), end, t); // binary search
 
@@ -248,7 +255,7 @@ double Timeseries::operator[](unsigned int j) const {
 
 #if (PISM_DEBUG==1)
   if (j >= m_values.size()) {
-    throw RuntimeError::formatted("Timeseries %s: operator[]: invalid argument: size=%d, index=%d",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Timeseries %s: operator[]: invalid argument: size=%d, index=%d",
                                   m_variable.get_name().c_str(), (int)m_values.size(), j);
   }
 #endif
@@ -258,7 +265,7 @@ double Timeseries::operator[](unsigned int j) const {
 
 //! \brief Compute an average of a time-series over interval (t,t+dt) using
 //! trapezoidal rule with N sub-intervals.
-double Timeseries::average(double t, double dt, unsigned int N) {
+double Timeseries::average(double t, double dt, unsigned int N) const {
   std::vector<double> V(N+1);
  
   for (unsigned int i = 0; i < N+1; ++i) {
@@ -298,7 +305,7 @@ TimeseriesMetadata& Timeseries::dimension_metadata() {
 /*!
   This length is changed by read() and append().
  */
-int Timeseries::length() {
+int Timeseries::length() const {
   return (int)m_values.size();
 }
 
@@ -347,7 +354,7 @@ void DiagnosticTimeseries::append(double V, double /*a*/, double b) {
 void DiagnosticTimeseries::interp(double a, double b) {
 
   if (m_t.empty()) {
-    throw RuntimeError("DiagnosticTimeseries::interp(...): interpolation buffer is empty");
+    throw RuntimeError(PISM_ERROR_LOCATION, "DiagnosticTimeseries::interp(...): interpolation buffer is empty");
   }
 
   if (m_t.size() == 1) {
@@ -359,7 +366,7 @@ void DiagnosticTimeseries::interp(double a, double b) {
   }
 
   if ((b < m_t[0]) || (b > m_t[1])) {
-    throw RuntimeError::formatted("DiagnosticTimeseries::interp(...): requested time %f is not within the last time-step!",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "DiagnosticTimeseries::interp(...): requested time %f is not within the last time-step!",
                                   b);
   }
 
@@ -392,12 +399,11 @@ void DiagnosticTimeseries::interp(double a, double b) {
 }
 
 void DiagnosticTimeseries::init(const std::string &filename) {
-  PIO nc(m_com, "netcdf3"); // OK to use netcdf3
   unsigned int len = 0;
 
   // Get the number of records in the file (for appending):
   if (io::file_exists(m_com, filename)) {
-    nc.open(filename, PISM_READONLY);
+    PIO nc(m_com, "netcdf3", filename, PISM_READONLY); // OK to use netcdf3
     len = nc.inq_dimlen(m_dimension.get_name());
     if (len > 0) {
       // read the last value and initialize v_previous and v[0]
@@ -411,7 +417,6 @@ void DiagnosticTimeseries::init(const std::string &filename) {
         m_v_previous = tmp[0];
       }
     }
-    nc.close();
   }
 
   output_filename = filename;
@@ -421,7 +426,6 @@ void DiagnosticTimeseries::init(const std::string &filename) {
 
 //! Writes data to a file.
 void DiagnosticTimeseries::flush() {
-  PIO nc(m_com, "netcdf3"); // OK to use netcdf3
   unsigned int len = 0;
 
   // return cleanly if this DiagnosticTimeseries object was created but never
@@ -434,7 +438,7 @@ void DiagnosticTimeseries::flush() {
     return;
   }
 
-  nc.open(output_filename, PISM_READWRITE);
+  PIO nc(m_com, "netcdf3", output_filename, PISM_READWRITE); // OK to use netcdf3
   len = nc.inq_dimlen(m_dimension.get_name());
 
   if (len > 0) {
@@ -459,8 +463,6 @@ void DiagnosticTimeseries::flush() {
   m_time.clear();
   m_values.clear();
   m_time_bounds.clear();
-
-  nc.close();
 }
 
 void DiagnosticTimeseries::reset() {

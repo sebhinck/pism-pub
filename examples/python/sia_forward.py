@@ -36,7 +36,6 @@ sia_forward.py -i IN.nc [-o file.nc]
     * -i is required
 """
 
-PISM.verbosityLevelFromOptions()
 PISM.show_usage_check_req_opts(ctx.log(), "sia_forward.py", ["-i"], usage)
 
 input_filename, input_set = PISM.optionsStringWasSet("-i", "input file")
@@ -54,8 +53,7 @@ periodicity = PISM.XY_PERIODIC
 if is_regional:
     periodicity = PISM.NOT_PERIODIC
 
-input_file = PISM.PIO(ctx.com(), "netcdf3")
-input_file.open(input_filename, PISM.PISM_READONLY)
+input_file = PISM.PIO(ctx.com(), "netcdf3", input_filename, PISM.PISM_READONLY)
 grid = PISM.IceGrid.FromFile(ctx, input_file, "enthalpy", periodicity)
 
 config.set_boolean("basal_resistance.pseudo_plastic.enabled", False)
@@ -101,15 +99,7 @@ PISM.verbPrintf(2, context.com, "* Computing SIA velocities...\n")
 vel_sia = PISM.sia.computeSIASurfaceVelocities(modeldata, siasolver=solver)
 
 PISM.verbPrintf(2, context.com, "* Saving results to %s...\n" % output_file)
-pio = PISM.PIO(grid.com, "netcdf3")
-pio.open(output_file, PISM.PISM_READWRITE_MOVE)
-PISM.define_time(pio, grid.ctx().config().get_string("time.dimension_name"),
-                 grid.ctx().config().get_string("time.calendar"),
-                 grid.ctx().time().units_string(),
-                 grid.ctx().unit_system())
-PISM.append_time(pio,
-                 grid.ctx().config().get_string("time.dimension_name"),
-                 grid.ctx().time().current())
+pio = PISM.util.prepare_output(output_file)
 pio.close()
 
 # Save time & command line & results

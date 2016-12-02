@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
 
     options::String input_file("-i", "Set the input file name");
     if (not input_file.is_set()) {
-      throw RuntimeError("BLATTER_TEST ERROR: -i is required.");
+      throw RuntimeError(PISM_ERROR_LOCATION, "BLATTER_TEST ERROR: -i is required.");
     }
 
     options::String output_file("-o", "Set the output file name", "blatter_test.nc");
@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
     melange_back_pressure.set(0.0);
 
     PetscLogStagePush(cold);
-    stressbalance::BlatterStressBalance blatter(grid, EC);
+    stressbalance::BlatterStressBalance blatter(grid);
     // Initialize the Blatter solver:
     blatter.init();
     blatter.update(false, 0.0, melange_back_pressure);
@@ -166,9 +166,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Write results to an output file:
-    PIO pio(grid->com, "netcdf3");
-
-    pio.open(output_file, PISM_READWRITE_MOVE);
+    PIO pio(grid->com, "netcdf3", output_file, PISM_READWRITE_MOVE);
     io::define_time(pio, config->get_string("time.dimension_name"),
                     grid->ctx()->time()->calendar(),
                     grid->ctx()->time()->CF_units_string(),

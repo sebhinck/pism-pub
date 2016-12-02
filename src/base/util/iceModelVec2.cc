@@ -56,7 +56,7 @@ IceModelVec2::IceModelVec2()
 IceModelVec2::Ptr IceModelVec2::To2D(IceModelVec::Ptr input) {
   IceModelVec2::Ptr result = dynamic_pointer_cast<IceModelVec2,IceModelVec>(input);
   if (not (bool)result) {
-    throw RuntimeError("dynamic cast failure");
+    throw RuntimeError(PISM_ERROR_LOCATION, "dynamic cast failure");
   }
   return result;
 }
@@ -68,7 +68,7 @@ IceModelVec2V::~IceModelVec2V() {
 IceModelVec2S::Ptr IceModelVec2S::To2DScalar(IceModelVec::Ptr input) {
   IceModelVec2S::Ptr result = dynamic_pointer_cast<IceModelVec2S,IceModelVec>(input);
   if (not (bool)result) {
-    throw RuntimeError("dynamic cast failure");
+    throw RuntimeError(PISM_ERROR_LOCATION, "dynamic cast failure");
   }
   return result;
 }
@@ -165,7 +165,7 @@ void IceModelVec2S::put_on_proc0(Vec parallel, Vec onp0) const {
   PISM_CHK(ierr, "PetscObjectQuery");
 
   if (natural_work == NULL || scatter_to_zero == NULL) {
-    throw RuntimeError("call allocate_proc0_copy() before calling put_on_proc0");
+    throw RuntimeError(PISM_ERROR_LOCATION, "call allocate_proc0_copy() before calling put_on_proc0");
   }
 
   ierr = DMDAGlobalToNaturalBegin(*m_da, parallel, INSERT_VALUES, natural_work);
@@ -209,7 +209,7 @@ void IceModelVec2S::get_from_proc0(Vec onp0, Vec parallel) {
   PISM_CHK(ierr, "PetscObjectQuery");
 
   if (natural_work == NULL || scatter_to_zero == NULL) {
-    throw RuntimeError("call allocate_proc0_copy() before calling get_from_proc0");
+    throw RuntimeError(PISM_ERROR_LOCATION, "call allocate_proc0_copy() before calling get_from_proc0");
   }
 
   ierr = VecScatterBegin(scatter_to_zero, onp0, natural_work,
@@ -290,7 +290,6 @@ void IceModelVec2S::mask_by(const IceModelVec2S &M, double fill) {
 }
 
 void IceModelVec2::write_impl(const PIO &nc) const {
-  PetscErrorCode ierr;
 
   assert(m_v != NULL);
 
@@ -308,10 +307,8 @@ void IceModelVec2::write_impl(const PIO &nc) const {
   // the same way v is
   petsc::TemporaryGlobalVec tmp(da2);
 
-  if (getVerbosityLevel() > 3) {
-    ierr = PetscPrintf(m_grid->com, "  Writing %s...\n", m_name.c_str());
-    PISM_CHK(ierr, "PetscPrintf");
-  }
+  Logger::ConstPtr log = m_grid->ctx()->log();
+  log->message(4, "  Writing %s...\n", m_name.c_str());
 
   for (unsigned int j = 0; j < m_dof; ++j) {
     IceModelVec2::get_dof(da2, tmp, j);
@@ -323,17 +320,14 @@ void IceModelVec2::write_impl(const PIO &nc) const {
 }
 
 void IceModelVec2::read_impl(const PIO &nc, const unsigned int time) {
-  PetscErrorCode ierr;
 
   if ((m_dof == 1) and (not m_has_ghosts)) {
     IceModelVec::read_impl(nc, time);
     return;
   }
 
-  if (getVerbosityLevel() > 3) {
-    ierr = PetscPrintf(m_grid->com, "  Reading %s...\n", m_name.c_str());
-    PISM_CHK(ierr, "PetscPrintf");
-  }
+  Logger::ConstPtr log = m_grid->ctx()->log();
+  log->message(4, "  Reading %s...\n", m_name.c_str());
 
   assert(m_v != NULL);
 
@@ -401,7 +395,7 @@ void IceModelVec2::view(int viewer_size) const {
   petsc::Viewer::Ptr viewers[2];
 
   if (m_dof > 2) {
-    throw RuntimeError("dof > 2 is not supported");
+    throw RuntimeError(PISM_ERROR_LOCATION, "dof > 2 is not supported");
   }
 
   for (unsigned int j = 0; j < std::min(m_dof, 2U); ++j) {
@@ -413,7 +407,7 @@ void IceModelVec2::view(int viewer_size) const {
 
     if (not m_map_viewers[c_name]) {
       m_map_viewers[c_name].reset(new petsc::Viewer(m_grid->com, title, viewer_size,
-                                           m_grid->Lx(), m_grid->Ly()));
+                                                    m_grid->Lx(), m_grid->Ly()));
     }
 
     viewers[j] = m_map_viewers[c_name];
@@ -669,7 +663,7 @@ void IceModelVec2S::copy_from(const IceModelVec &source) {
 IceModelVec2Stag::Ptr IceModelVec2Stag::ToStaggered(IceModelVec::Ptr input) {
   IceModelVec2Stag::Ptr result = dynamic_pointer_cast<IceModelVec2Stag,IceModelVec>(input);
   if (not (bool)result) {
-    throw RuntimeError("dynamic cast failure");
+    throw RuntimeError(PISM_ERROR_LOCATION, "dynamic cast failure");
   }
   return result;
 }

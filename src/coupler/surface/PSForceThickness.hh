@@ -21,7 +21,6 @@
 
 #include "PSModifier.hh"
 #include "base/util/iceModelVec.hh"
-#include "base/util/VariableMetadata.hh"
 
 namespace pism {
 namespace surface {
@@ -34,18 +33,18 @@ public:
   virtual ~ForceThickness();
 protected:
   virtual void init_impl();
-  virtual void ice_surface_mass_flux_impl(IceModelVec2S &result);
-  virtual void ice_surface_temperature_impl(IceModelVec2S &result);
-  virtual MaxTimestep max_timestep_impl(double my_t);
-  virtual void write_variables_impl(const std::set<std::string> &vars, const PIO &nc);
-  virtual void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result);
-  virtual void define_variables_impl(const std::set<std::string> &vars,
-                                     const PIO &nc, IO_Type nctype);
+
+  virtual void define_model_state_impl(const PIO &output) const;
+  virtual void write_model_state_impl(const PIO &output) const;
+
+  virtual void ice_surface_mass_flux_impl(IceModelVec2S &result) const;
+
+  virtual MaxTimestep max_timestep_impl(double my_t) const;
 private:
   double m_alpha, m_alpha_ice_free_factor,  m_ice_free_thickness_threshold;
   double m_start_time;
-  IceModelVec2S m_target_thickness, m_ftt_mask;
-  SpatialVariableMetadata m_climatic_mass_balance, m_climatic_mass_balance_original, m_ice_surface_temp;
+  IceModelVec2S m_target_thickness;
+  IceModelVec2S m_ftt_mask;
 };
 
 } // end of namespace surface

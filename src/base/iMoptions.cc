@@ -37,6 +37,7 @@
 #include "earth/PISMBedDef.hh"
 #include "base/util/PISMVars.hh"
 #include "base/util/pism_utilities.hh"
+#include "base/age/AgeModel.hh"
 
 namespace pism {
 
@@ -48,9 +49,6 @@ void IceModel::setFromOptions() {
 
   set_config_from_options(*m_config);
 
-  m_id = options::Integer("-id", "Specifies the sounding row", m_id);
-  m_jd = options::Integer("-jd", "Specifies the sounding column", m_jd);
-
   // Set global attributes using the config database:
   m_output_global_attributes.set_string("title", m_config->get_string("run_info.title"));
   m_output_global_attributes.set_string("institution", m_config->get_string("run_info.institution"));
@@ -59,7 +57,7 @@ void IceModel::setFromOptions() {
   // warn about some option combinations
 
   if (m_config->get_double("time_stepping.maximum_time_step") <= 0) {
-    throw RuntimeError("time_stepping.maximum_time_step has to be greater than 0.");
+    throw RuntimeError(PISM_ERROR_LOCATION, "time_stepping.maximum_time_step has to be greater than 0.");
   }
 
   if (not m_config->get_boolean("geometry.update.enabled") &&
@@ -142,45 +140,6 @@ std::set<std::string> IceModel::set_output_size(const std::string &keyword) {
     }
   }
 
-  if (m_config->get_boolean("age.enabled")) {
-    result.insert("age");
-  } else {
-    result.erase("age");
-  }
-
-  if (m_ocean_kill_calving != NULL) {
-    m_ocean_kill_calving->add_vars_to_output(keyword, result);
-  }
-
-  if (m_beddef != NULL) {
-    m_beddef->add_vars_to_output(keyword, result);
-  }
-
-  if (m_btu != NULL) {
-    m_btu->add_vars_to_output(keyword, result);
-  }
-
-  if (m_basal_yield_stress_model != NULL) {
-    m_basal_yield_stress_model->add_vars_to_output(keyword, result);
-  }
-
-  // Ask the stress balance module to add more variables:
-  if (m_stress_balance != NULL) {
-    m_stress_balance->add_vars_to_output(keyword, result);
-  }
-
-  if (m_subglacial_hydrology != NULL) {
-    m_subglacial_hydrology->add_vars_to_output(keyword, result);
-  }
-
-  // Ask ocean and surface models to add more variables to the list:
-  if (m_ocean != NULL) {
-    m_ocean->add_vars_to_output(keyword, result);
-  }
-
-  if (m_surface != NULL) {
-    m_surface->add_vars_to_output(keyword, result);
-  }
   return result;
 }
 

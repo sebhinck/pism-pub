@@ -89,10 +89,10 @@ the original implementation.
  */
 class BlatterStressBalance : public ShallowStressBalance {
 public:
-  BlatterStressBalance(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
+  BlatterStressBalance(IceGrid::ConstPtr g);
   virtual ~BlatterStressBalance();
 
-  virtual std::string stdout_report();
+  virtual std::string stdout_report() const;
 
   virtual void update(bool fast,
                       double sea_level,
@@ -108,9 +108,8 @@ protected:
   void init_impl();
 
   // I/O implementation methods
-  void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result);
-  void define_variables_impl(const std::set<std::string> &vars, const PIO &nc, IO_Type nctype);
-  void write_variables_impl(const std::set<std::string> &vars, const PIO &nc);
+  void define_model_state_impl(const PIO &output) const;
+  void write_model_state_impl(const PIO &output) const;
 
   void transfer_velocity();
   void initialize_ice_hardness();

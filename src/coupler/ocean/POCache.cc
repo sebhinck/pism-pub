@@ -37,7 +37,7 @@ Cache::Cache(IceGrid::ConstPtr g, OceanModel* in)
   m_next_update_time = m_grid->ctx()->time()->current();
   m_update_interval_years = 10;
 
-  m_shelf_base_mass_flux.create(m_grid, "shelfbmassflux", WITHOUT_GHOSTS);
+  m_shelf_base_mass_flux.create(m_grid, "effective_shelf_base_mass_flux", WITHOUT_GHOSTS);
   m_shelf_base_mass_flux.set_attrs("climate_state",
                                    "ice mass flux from ice shelf base"
                                    " (positive flux is loss from ice shelf)",
@@ -45,7 +45,7 @@ Cache::Cache(IceGrid::ConstPtr g, OceanModel* in)
   m_shelf_base_mass_flux.metadata().set_string("glaciological_units", "kg m-2 year-1");
   m_shelf_base_mass_flux.write_in_glaciological_units = true;
 
-  m_shelf_base_temperature.create(m_grid, "shelfbtemp", WITHOUT_GHOSTS);
+  m_shelf_base_temperature.create(m_grid, "effective_shelf_base_temperature", WITHOUT_GHOSTS);
   m_shelf_base_temperature.set_attrs("climate_state",
                                      "absolute temperature at ice shelf base",
                                      "K", "");
@@ -74,7 +74,7 @@ void Cache::init_impl() {
                                      update_interval);
 
   if (update_interval <= 0) {
-    throw RuntimeError("-ocean_cache_update_interval has to be strictly positive.");
+    throw RuntimeError(PISM_ERROR_LOCATION, "-ocean_cache_update_interval has to be strictly positive.");
   }
 
   m_update_interval_years = update_interval;
@@ -108,67 +108,23 @@ void Cache::update_impl(double my_t, double my_dt) {
 }
 
 
-void Cache::sea_level_elevation_impl(double &result) {
+void Cache::sea_level_elevation_impl(double &result) const {
   result = m_sea_level;
 }
 
-void Cache::shelf_base_temperature_impl(IceModelVec2S &result) {
+void Cache::shelf_base_temperature_impl(IceModelVec2S &result) const {
   result.copy_from(m_shelf_base_temperature);
 }
 
-void Cache::shelf_base_mass_flux_impl(IceModelVec2S &result) {
+void Cache::shelf_base_mass_flux_impl(IceModelVec2S &result) const {
   result.copy_from(m_shelf_base_mass_flux);
 }
 
-void Cache::melange_back_pressure_fraction_impl(IceModelVec2S &result) {
+void Cache::melange_back_pressure_fraction_impl(IceModelVec2S &result) const {
   result.copy_from(m_melange_back_pressure_fraction);
 }
 
-
-void Cache::define_variables_impl(const std::set<std::string> &vars_input, const PIO &nc,
-                                         IO_Type nctype) {
-  std::set<std::string> vars = vars_input;
-
-  if (set_contains(vars, m_shelf_base_mass_flux.metadata().get_string("short_name"))) {
-    m_shelf_base_mass_flux.define(nc, nctype);
-    vars.erase(m_shelf_base_mass_flux.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_shelf_base_temperature.metadata().get_string("short_name"))) {
-    m_shelf_base_temperature.define(nc, nctype);
-    vars.erase(m_shelf_base_temperature.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_melange_back_pressure_fraction.metadata().get_string("short_name"))) {
-    m_melange_back_pressure_fraction.define(nc, nctype);
-    vars.erase(m_melange_back_pressure_fraction.metadata().get_string("short_name"));
-  }
-
-  m_input_model->define_variables(vars, nc, nctype);
-}
-
-void Cache::write_variables_impl(const std::set<std::string> &vars_input, const PIO &nc) {
-  std::set<std::string> vars = vars_input;
-
-  if (set_contains(vars, m_shelf_base_mass_flux.metadata().get_string("short_name"))) {
-    m_shelf_base_mass_flux.write(nc);
-    vars.erase(m_shelf_base_mass_flux.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_shelf_base_temperature.metadata().get_string("short_name"))) {
-    m_shelf_base_temperature.write(nc);
-    vars.erase(m_shelf_base_temperature.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_melange_back_pressure_fraction.metadata().get_string("short_name"))) {
-    m_melange_back_pressure_fraction.write(nc);
-    vars.erase(m_melange_back_pressure_fraction.metadata().get_string("short_name"));
-  }
-
-  m_input_model->write_variables(vars, nc);
-}
-
-MaxTimestep Cache::max_timestep_impl(double t) {
+MaxTimestep Cache::max_timestep_impl(double t) const {
   double dt = m_next_update_time - t;
 
   // if we got very close to the next update time, set time step
@@ -181,11 +137,13 @@ MaxTimestep Cache::max_timestep_impl(double t) {
     assert(dt > 0.0);
   }
 
+  MaxTimestep cache_dt(dt, "ocean cache");
+
   MaxTimestep input_max_timestep = m_input_model->max_timestep(t);
-  if (input_max_timestep.is_finite()) {
-    return std::min(input_max_timestep, MaxTimestep(dt));
+  if (input_max_timestep.finite()) {
+    return std::min(input_max_timestep, cache_dt);
   } else {
-    return MaxTimestep(dt);
+    return cache_dt;
   }
 }
 

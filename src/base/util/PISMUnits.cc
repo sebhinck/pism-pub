@@ -49,8 +49,7 @@ System::System(const std::string &path) {
   }
 
   if (tmp == NULL) {
-    std::string message = std::string("ut_read_xml(") + path + ") failed";
-    throw RuntimeError(message);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "ut_read_xml(%s) failed", path.c_str());
   }
   ut_set_error_message_handler(ut_write_to_stderr);
 
@@ -74,8 +73,8 @@ Unit::Unit(System::Ptr system, const std::string &spec)
   : m_unit(NULL), m_system(system) {
   m_unit = ut_parse(m_system->m_system.get(), spec.c_str(), UT_ASCII);
   if (m_unit == NULL) {
-    std::string message = "unit specification '" + spec + "' is unknown or invalid";
-    throw RuntimeError(message);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "unit specification '%s' is unknown or invalid",
+                                  spec.c_str());
   }
   m_unit_string = spec;
 }
@@ -85,7 +84,7 @@ Unit::Unit(const Unit &other)
 
   m_unit = ut_clone(other.m_unit);
   if (m_unit == NULL) {
-    throw RuntimeError("ut_clone failed");
+    throw RuntimeError(PISM_ERROR_LOCATION, "ut_clone failed");
   }
 
   m_system      = other.m_system;
@@ -104,7 +103,7 @@ Unit& Unit::operator=(const Unit& other) {
 
   m_unit = ut_clone(other.m_unit);
   if (m_unit == NULL) {
-    throw RuntimeError("ut_clone failed");
+    throw RuntimeError(PISM_ERROR_LOCATION, "ut_clone failed");
   }
 
   return *this;
@@ -141,26 +140,26 @@ Converter::Converter(System::Ptr sys,
   Unit u1(sys, spec1), u2(sys, spec2);
 
   if (ut_are_convertible(u1.get(), u2.get()) == 0) {
-    throw RuntimeError::formatted("cannot convert %s to %s", spec1.c_str(), spec2.c_str());
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "cannot convert %s to %s", spec1.c_str(), spec2.c_str());
   }
 
   m_converter = ut_get_converter(u1.get(), u2.get());
   if (m_converter == NULL) {
-    throw RuntimeError::formatted("cannot create a converter from %s to %s",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "cannot create a converter from %s to %s",
                                   spec1.c_str(), spec2.c_str());
   }
 }
 
 Converter::Converter(const Unit &u1, const Unit &u2) {
   if (ut_are_convertible(u1.get(), u2.get()) == 0) {
-    std::string message = "cannot convert " + u1.format() + " to " + u2.format();
-    throw RuntimeError(message);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "cannot convert '%s' to '%s'",
+                                  u1.format().c_str(), u2.format().c_str());
   }
 
   m_converter = ut_get_converter(u1.get(), u2.get());
   if (m_converter == NULL) {
-    std::string message = "cannot create a converter from " + u1.format() + " to " + u2.format();
-    throw RuntimeError(message);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "failed to create a converter from '%s' to '%s'",
+                                  u1.format().c_str(), u2.format().c_str());
   }
 }
 

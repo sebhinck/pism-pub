@@ -74,19 +74,7 @@ pism_test (Verification:test_G test_17.sh)
 
 pism_test (Verification:test_K test_18.sh)
 
-pism_test (Schoof_2003_bed_roughness_SIA_regress test_22.sh)
-
 pism_test (restart:i_vs_bootstrap_and_regrid_file test_23.sh)
-
-pism_test (flow_law:GPBLD test_20.sh)
-
-pism_test (flow_law:Paterson-Budd test_21.sh)
-
-pism_test (flow_law:Hooke test_24.sh)
-
-pism_test (flow_law:GK test_25.sh)
-
-pism_test (flow_law:Paterson-Budd_cold test_26.sh)
 
 pism_test (runtime_viewers test_27.sh)
 
@@ -135,6 +123,10 @@ if(Pism_BUILD_PYTHON_BINDINGS)
 	pism_python_test (Python:Verification:SSAFEM_linear_flow ssa/ssafem_test_linear.sh)
 
         pism_python_test (Python:Verification:SSAFEM_plug_flow ssa/ssafem_test_plug.sh)
+
+        pism_python_test (Python:Verification:test_V_SSAFD_CFBC ssa/ssa_test_cfbc_fd.sh)
+
+        pism_python_test (Python:Verification:test_V_SSAFEM_CFBC ssa/ssa_test_cfbc_fem.sh)
 
         pism_python_test (Python:sia_forward.py test_33.sh)
 

@@ -37,7 +37,7 @@ namespace stressbalance {
 //! Shallow stress balance (such as the SSA).
 class ShallowStressBalance : public Component {
 public:
-  ShallowStressBalance(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
+  ShallowStressBalance(IceGrid::ConstPtr g);
   virtual ~ShallowStressBalance();
 
   //  initialization and I/O:
@@ -51,38 +51,34 @@ public:
                       const IceModelVec2S &melange_back_pressure) = 0;
 
   //! \brief Get the thickness-advective 2D velocity.
-  const IceModelVec2V& velocity();
+  const IceModelVec2V& velocity() const;
 
   //! \brief Get the basal frictional heating (for the adaptive energy time-stepping).
   const IceModelVec2S& basal_frictional_heating();
 
-  void compute_2D_principal_strain_rates(const IceModelVec2V &velocity,
-                                         const IceModelVec2CellType &mask,
-                                         IceModelVec2 &result);
-
   void compute_2D_stresses(const IceModelVec2V &velocity,
                            const IceModelVec2CellType &mask,
-                           IceModelVec2 &result);
+                           IceModelVec2 &result) const;
 
   void compute_basal_frictional_heating(const IceModelVec2V &velocity,
                                         const IceModelVec2S &tauc,
                                         const IceModelVec2CellType &mask,
-                                        IceModelVec2S &result);
+                                        IceModelVec2S &result) const;
   // helpers:
 
   //! \brief Produce a report string for the standard output.
-  virtual std::string stdout_report();
+  virtual std::string stdout_report() const;
 
-  const rheology::FlowLaw* flow_law();
+  const rheology::FlowLaw* flow_law() const;
 
-  EnthalpyConverter::Ptr enthalpy_converter();
+  EnthalpyConverter::Ptr enthalpy_converter() const;
 
-  const IceBasalResistancePlasticLaw* sliding_law();
+  const IceBasalResistancePlasticLaw* sliding_law() const;
 protected:
   virtual void init_impl();
   
   virtual void get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict);
+                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const;
 
   double m_sea_level;
   IceBasalResistancePlasticLaw *m_basal_sliding_law;
@@ -103,24 +99,17 @@ protected:
 */
 class ZeroSliding : public ShallowStressBalance {
 public:
-  ZeroSliding(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
+  ZeroSliding(IceGrid::ConstPtr g);
   virtual ~ZeroSliding();
   
   virtual void update(bool fast, double sea_level, const IceModelVec2S &melange_back_pressure);
 
-  //! Writes requested couplings fields to file and/or asks an attached
-  //! model to do so.
 protected:
-  virtual void write_variables_impl(const std::set<std::string> &/*vars*/, const PIO &/*nc*/);
-  virtual void add_vars_to_output_impl(const std::string &keyword,
-                                       std::set<std::string> &result);
-  virtual void define_variables_impl(const std::set<std::string> &/*vars*/, const PIO &/*nc*/,
-                                     IO_Type /*nctype*/);
 };
 
 class PrescribedSliding : public ZeroSliding {
 public:
-  PrescribedSliding(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
+  PrescribedSliding(IceGrid::ConstPtr g);
   virtual ~PrescribedSliding();
   virtual void update(bool fast, double sea_level, const IceModelVec2S &melange_back_pressure);
   virtual void init();

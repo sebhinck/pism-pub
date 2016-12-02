@@ -48,7 +48,7 @@ void vonMisesCalving::init() {
                  "* Initializing the 'von Mises calving' mechanism...\n");
 
   if (fabs(m_grid->dx() - m_grid->dy()) / std::min(m_grid->dx(), m_grid->dy()) > 1e-2) {
-    throw RuntimeError::formatted("-calving vonmises_calving using a non-square grid cell is not implemented (yet);\n"
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "-calving vonmises_calving using a non-square grid cell is not implemented (yet);\n"
                                   "dx = %f, dy = %f, relative difference = %f",
                                   m_grid->dx(), m_grid->dy(),
                                   fabs(m_grid->dx() - m_grid->dy()) / std::max(m_grid->dx(), m_grid->dy()));
@@ -63,7 +63,7 @@ void vonMisesCalving::init() {
   See equation (26) in [\ref Winkelmannetal2011].
 */
 void vonMisesCalving::compute_calving_rate(const IceModelVec2CellType &mask,
-                                           IceModelVec2S &result) {
+                                           IceModelVec2S &result) const {
 
   using std::max;
 
@@ -86,7 +86,7 @@ void vonMisesCalving::compute_calving_rate(const IceModelVec2CellType &mask,
 
   const double *z = &m_grid->z()[0];
   const rheology::FlowLaw*
-    flow_law = m_stress_balance->get_stressbalance()->flow_law();
+    flow_law = m_stress_balance->shallow()->flow_law();
 
   const double ssa_n = flow_law->exponent();
 
@@ -160,21 +160,8 @@ void vonMisesCalving::compute_calving_rate(const IceModelVec2CellType &mask,
   }   // end of loop over grid points
 }
 
-void vonMisesCalving::add_vars_to_output_impl(const std::string &/*keyword*/, std::set<std::string> &/*result*/) {
-  // empty
-}
-
-void vonMisesCalving::define_variables_impl(const std::set<std::string> &/*vars*/, const PIO &/*nc*/,
-                                            IO_Type /*nctype*/) {
-  // empty
-}
-
-void vonMisesCalving::write_variables_impl(const std::set<std::string> &/*vars*/, const PIO& /*nc*/) {
-  // empty
-}
-
 void vonMisesCalving::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                           std::map<std::string, TSDiagnostic::Ptr> &ts_dict) {
+                                           std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const {
   dict["vonmises_calving_rate"] = Diagnostic::Ptr(new CalvingRate(this, "vonmises_calving_rate",
                                                                   "horizontal calving rate due to von Mises calving"));
   (void)ts_dict;

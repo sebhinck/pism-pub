@@ -98,26 +98,17 @@ int main(int argc, char *argv[]) {
   com = PETSC_COMM_WORLD;
 
   try {
-    verbosityLevelFromOptions();
     Context::Ptr ctx = pisms_context(com);
     Logger::Ptr log = ctx->log();
-
-    log->message(2, "PISMS %s (simplified geometry mode)\n",
-                 PISM_Revision);
-
-    if (options::Bool("-version", "stop after printing print PISM version")) {
-      return 0;
-    }
 
     std::string usage =
       "  pisms [-eisII x] [OTHER PISM & PETSc OPTIONS]\n"
       "where major option chooses type of simplified experiment:\n"
       "  -eisII x    choose EISMINT II experiment (x = A|B|C|D|E|F|G|H|I|J|K|L)\n";
 
-    std::vector<std::string> required;
-    required.clear(); // no actually required options; "-eisII A" is default
-
-    bool done = show_usage_check_req_opts(*log, "pisms", required, usage);
+    bool done = show_usage_check_req_opts(*log, "PISMS (simplified geometry mode)",
+                                          std::vector<std::string>(), // no required options
+                                          usage);
     if (done) {
       return 0;
     }
@@ -127,7 +118,7 @@ int main(int argc, char *argv[]) {
 
     // Stop if -eisII G or -eisII H was given.
     if (experiment == "G" or experiment == "H") {
-      throw RuntimeError::formatted("EISMINT II experiment %s is not supported.",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "EISMINT II experiment %s is not supported.",
                                     experiment.c_str());
     }
 

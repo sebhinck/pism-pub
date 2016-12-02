@@ -65,7 +65,6 @@ if __name__ == '__main__':
 
     PISM.set_abort_on_sigint(True)
 
-    PISM.verbosityLevelFromOptions()
     PISM.verbPrintf(2, PISM.Context().com, "SSA forward model.\n")
     if PISM.OptionBool("-version", "stop after printing PISM version"):
         sys.exit(0)
@@ -242,16 +241,7 @@ if __name__ == '__main__':
         final_velocity.add(PISM.convert(sys, 1.0, "m/year", "m/second"),
                            u_noise)
 
-    pio = PISM.PIO(grid.com, "netcdf3")
-    pio.open(output_file_name, PISM.PISM_READWRITE_MOVE)
-    PISM.define_time(pio,
-                     grid.ctx().config().get_string("time.dimension_name"),
-                     grid.ctx().config().get_string("time.calendar"),
-                     grid.ctx().time().units_string(),
-                     grid.ctx().unit_system())
-    PISM.append_time(pio,
-                     grid.ctx().config().get_string("time.dimension_name"),
-                     grid.ctx().time().current())
+    pio = PISM.util.prepare_output(output_file_name)
     pio.close()
 
     vecs.write(output_file_name)

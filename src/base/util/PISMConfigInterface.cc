@@ -64,13 +64,8 @@ Config::~Config() {
 
 void Config::read(MPI_Comm com, const std::string &file) {
 
-  PIO nc(com, "netcdf3"); // OK to use netcdf3
-
-  nc.open(file, PISM_READONLY);
-
+  PIO nc(com, "netcdf3", file, PISM_READONLY); // OK to use netcdf3
   this->read(nc);
-
-  nc.close();
 }
 
 void Config::read(const PIO &nc) {
@@ -85,15 +80,11 @@ void Config::write(const PIO &nc) const {
 
 void Config::write(MPI_Comm com, const std::string &file, bool append) const {
 
-  PIO nc(com, "netcdf3"); // OK to use netcdf3
-
   IO_Mode mode = append ? PISM_READWRITE : PISM_READWRITE_MOVE;
 
-  nc.open(file, mode);
+  PIO nc(com, "netcdf3", file, mode); // OK to use netcdf3
 
   this->write(nc);
-
-  nc.close();
 }
 
 //! \brief Returns the name of the file used to initialize the database.
@@ -340,7 +331,7 @@ void print_unused_parameters(const Logger &log, int verbosity_threshhold,
   std::set<std::string> parameters_used = config.parameters_used();
 
   if (options::Bool("-options_left", "report unused options")) {
-    verbosity_threshhold = getVerbosityLevel();
+    verbosity_threshhold = log.get_threshold();
   }
 
   std::set<std::string>::const_iterator k;
@@ -382,7 +373,7 @@ void set_boolean_from_option(Config &config, const std::string &name, const std:
                               config.get_string(flag + "_doc", Config::FORGET_THIS_USE));
 
   if (foo and no_foo) {
-    throw RuntimeError::formatted("Inconsistent command-line options: both -%s and -no_%s are set.\n",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Inconsistent command-line options: both -%s and -no_%s are set.\n",
                                   name.c_str(), name.c_str());
   }
 
@@ -487,7 +478,7 @@ void set_parameter_from_options(Config &config, const std::string &name) {
 
     set_keyword_from_option(config, option, name, choices);
   } else {
-    throw RuntimeError::formatted("parameter type \"%s\" is invalid", type.c_str());
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "parameter type \"%s\" is invalid", type.c_str());
   }
 }
 
@@ -529,7 +520,7 @@ void set_config_from_options(Config &config) {
         config.set_boolean("energy.enabled", true, Config::USER);
         config.set_boolean("energy.temperature_based", false, Config::USER);
       } else {
-        throw RuntimeError("this can't happen: options::Keyword validates input");
+        throw RuntimeError(PISM_ERROR_LOCATION, "this can't happen: options::Keyword validates input");
       }
     }
   }
@@ -538,7 +529,7 @@ void set_config_from_options(Config &config) {
   options::RealList topg_to_phi("-topg_to_phi", "phi_min, phi_max, topg_min, topg_max");
   if (topg_to_phi.is_set()) {
     if (topg_to_phi->size() != 4) {
-      throw RuntimeError::formatted("option -topg_to_phi requires a comma-separated list with 4 numbers; got %d",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "option -topg_to_phi requires a comma-separated list with 4 numbers; got %d",
                                     (int)topg_to_phi->size());
     }
     config.set_boolean("basal_yield_stress.mohr_coulomb.topg_to_phi.enabled", true);
@@ -563,7 +554,6 @@ void set_config_from_options(Config &config) {
   if (pik) {
     config.set_boolean("stress_balance.calving_front_stress_bc", true, Config::USER);
     config.set_boolean("geometry.part_grid.enabled", true, Config::USER);
-    config.set_boolean("geometry.part_grid.redistribute_residual_volume", true, Config::USER);
     config.set_boolean("geometry.remove_icebergs", true, Config::USER);
     config.set_boolean("geometry.grounded_cell_fraction", true, Config::USER);
   }

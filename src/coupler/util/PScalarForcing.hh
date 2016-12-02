@@ -68,12 +68,12 @@ protected:
                                     "Boundary condition reference year", 0.0);
 
     if (not file.is_set()) {
-      throw RuntimeError::formatted("command-line option %s_file is required.",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "command-line option %s_file is required.",
                                     m_option_prefix.c_str());
     }
 
     if (period.value() < 0.0) {
-      throw RuntimeError::formatted("invalid %s_period %d (period length cannot be negative)",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid %s_period %d (period length cannot be negative)",
                                     m_option_prefix.c_str(), period.value());
     }
     m_bc_period = (unsigned int)period;
@@ -88,21 +88,19 @@ protected:
                         "  reading %s data from forcing file %s...\n",
                         m_offset->name().c_str(), file->c_str());
 
-    PIO nc(g->com, "netcdf3");
-    nc.open(file, PISM_READONLY);
+    PIO nc(g->com, "netcdf3", file, PISM_READONLY);
     {
       m_offset->read(nc, *g->ctx()->time(), *g->ctx()->log());
     }
-    nc.close();
   }
 
-  //! Apply offset as an offset
-  void offset_data(IceModelVec2S &result) {
+  //! Apply the current forcing as an offset.
+  void offset_data(IceModelVec2S &result) const {
     result.shift(m_current_forcing);
   }
 
-  //! Apply offset as a scaling factor
-  void scale_data(IceModelVec2S &result) {
+  //! Apply the current forcing as a scaling factor.
+  void scale_data(IceModelVec2S &result) const {
     result.scale(m_current_forcing);
   }
 

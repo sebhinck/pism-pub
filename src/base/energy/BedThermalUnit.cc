@@ -53,9 +53,7 @@ BTUGrid BTUGrid::FromOptions(Context::ConstPtr ctx) {
 
     // If we're initializing from a file we need to get the number of bedrock
     // levels and the depth of the bed thermal layer from it:
-    PIO input_file(ctx->com(), "guess_mode");
-
-    input_file.open(opts.filename, PISM_READONLY);
+    PIO input_file(ctx->com(), "guess_mode", opts.filename, PISM_READONLY);
 
     if (input_file.inq_var("litho_temp")) {
       grid_info info(input_file, "litho_temp", ctx->unit_system(),
@@ -84,7 +82,7 @@ BTUGrid BTUGrid::FromOptions(Context::ConstPtr ctx) {
       result.Mbz = 1;
     } else {
       if (Mbz.is_set() ^ Lbz.is_set()) {
-        throw RuntimeError("please specify both -Mbz and -Lbz");
+        throw RuntimeError(PISM_ERROR_LOCATION, "please specify both -Mbz and -Lbz");
       }
 
       result.Lbz = Lbz;
@@ -193,28 +191,16 @@ unsigned int BedThermalUnit::Mz() const {
   return this->Mz_impl();
 }
 
-void BedThermalUnit::add_vars_to_output_impl(const std::string &keyword,
-                                             std::set<std::string> &result) {
-  (void) keyword;
-  result.insert(m_bottom_surface_flux.metadata().get_name());
+void BedThermalUnit::define_model_state_impl(const PIO &output) const {
+  m_bottom_surface_flux.define(output);
 }
 
-void BedThermalUnit::define_variables_impl(const std::set<std::string> &vars,
-                                           const PIO &nc, IO_Type nctype) {
-  if (set_contains(vars, m_bottom_surface_flux.metadata().get_name())) {
-    m_bottom_surface_flux.define(nc, nctype);
-  }
-}
-
-void BedThermalUnit::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-
-  if (set_contains(vars, m_bottom_surface_flux.metadata().get_name())) {
-    m_bottom_surface_flux.write(nc);
-  }
+void BedThermalUnit::write_model_state_impl(const PIO &output) const {
+  m_bottom_surface_flux.write(output);
 }
 
 void BedThermalUnit::get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                          std::map<std::string, TSDiagnostic::Ptr> &ts_dict) {
+                                          std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const {
   dict["hfgeoubed"] = Diagnostic::Ptr(new BTU_geothermal_flux_at_ground_level(this));
   (void)ts_dict;
 }
@@ -244,7 +230,7 @@ const IceModelVec2S& BedThermalUnit::flux_through_bottom_surface() const {
   return m_bottom_surface_flux;
 }
 
-BTU_geothermal_flux_at_ground_level::BTU_geothermal_flux_at_ground_level(BedThermalUnit *m)
+BTU_geothermal_flux_at_ground_level::BTU_geothermal_flux_at_ground_level(const BedThermalUnit *m)
   : Diag<BedThermalUnit>(m) {
   m_vars.push_back(SpatialVariableMetadata(m_sys, "hfgeoubed"));
   set_attrs("upward geothermal flux at ground (top of the bedrock) level",

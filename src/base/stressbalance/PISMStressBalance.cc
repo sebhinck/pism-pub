@@ -105,7 +105,11 @@ void StressBalance::update(bool fast, double sea_level,
       profiling.begin("SB vert. vel.");
       this->compute_vertical_velocity(u, v, m_basal_melt_rate, m_w);
       profiling.end("SB vert. vel.");
+
+      m_cfl_3d = compute_cfl_3d();
     }
+
+    m_cfl_2d = compute_cfl_2d();
   }
   catch (RuntimeError &e) {
     e.add_context("updating the stress balance");
@@ -113,47 +117,69 @@ void StressBalance::update(bool fast, double sea_level,
   }
 }
 
-const IceModelVec2V& StressBalance::advective_velocity() {
+CFLData StressBalance::compute_cfl_2d() {
+  const IceModelVec2S &ice_thickness = *m_grid->variables().get_2d_scalar("land_ice_thickness");
+  const IceModelVec2CellType &cell_type = *m_grid->variables().get_2d_cell_type("mask");
+
+  return ::pism::max_timestep_cfl_2d(ice_thickness,
+                                     cell_type,
+                                     m_shallow_stress_balance->velocity());
+}
+
+CFLData StressBalance::compute_cfl_3d() {
+  const IceModelVec2S &ice_thickness = *m_grid->variables().get_2d_scalar("land_ice_thickness");
+  const IceModelVec2CellType &cell_type = *m_grid->variables().get_2d_cell_type("mask");
+
+  return ::pism::max_timestep_cfl_3d(ice_thickness,
+                                     cell_type,
+                                     m_modifier->velocity_u(),
+                                     m_modifier->velocity_v(),
+                                     m_w);
+}
+
+CFLData StressBalance::max_timestep_cfl_2d() const {
+  return m_cfl_2d;
+}
+
+CFLData StressBalance::max_timestep_cfl_3d() const {
+  return m_cfl_3d;
+}
+
+const IceModelVec2V& StressBalance::advective_velocity() const {
   return m_shallow_stress_balance->velocity();
 }
 
-const IceModelVec2Stag& StressBalance::diffusive_flux() {
+const IceModelVec2Stag& StressBalance::diffusive_flux() const {
   return m_modifier->diffusive_flux();
 }
 
-double StressBalance::max_diffusivity() {
+double StressBalance::max_diffusivity() const {
   return m_modifier->max_diffusivity();
 }
 
-const IceModelVec3& StressBalance::velocity_u() {
+const IceModelVec3& StressBalance::velocity_u() const {
   return m_modifier->velocity_u();
 }
 
-const IceModelVec3& StressBalance::velocity_v() {
+const IceModelVec3& StressBalance::velocity_v() const {
   return m_modifier->velocity_v();
 }
 
-const IceModelVec3& StressBalance::velocity_w() {
+const IceModelVec3& StressBalance::velocity_w() const {
   return m_w;
 }
 
-const IceModelVec2S& StressBalance::basal_frictional_heating() {
+const IceModelVec2S& StressBalance::basal_frictional_heating() const {
   return m_shallow_stress_balance->basal_frictional_heating();
 }
 
-const IceModelVec3& StressBalance::volumetric_strain_heating() {
+const IceModelVec3& StressBalance::volumetric_strain_heating() const {
   return m_strain_heating;
-}
-
-void StressBalance::compute_2D_principal_strain_rates(const IceModelVec2V &velocity,
-                                                      const IceModelVec2CellType &mask,
-                                                      IceModelVec2 &result) {
-  m_shallow_stress_balance->compute_2D_principal_strain_rates(velocity, mask, result);
 }
 
 void StressBalance::compute_2D_stresses(const IceModelVec2V &velocity,
                                         const IceModelVec2CellType &mask,
-                                        IceModelVec2 &result) {
+                                        IceModelVec2 &result) const {
   m_shallow_stress_balance->compute_2D_stresses(velocity, mask, result);
 }
 
@@ -559,36 +585,129 @@ void StressBalance::compute_volumetric_strain_heating() {
   loop.check();
 }
 
-std::string StressBalance::stdout_report() {
+std::string StressBalance::stdout_report() const {
   return m_shallow_stress_balance->stdout_report() + m_modifier->stdout_report();
 }
 
-ShallowStressBalance* StressBalance::get_stressbalance() {
+const ShallowStressBalance* StressBalance::shallow() const {
   return m_shallow_stress_balance;
 }
 
-SSB_Modifier* StressBalance::get_ssb_modifier() {
+const SSB_Modifier* StressBalance::modifier() const {
   return m_modifier;
 }
 
-void StressBalance::define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
-                                               IO_Type nctype) {
 
-  m_shallow_stress_balance->define_variables(vars, nc, nctype);
-  m_modifier->define_variables(vars, nc, nctype);
+void StressBalance::define_model_state_impl(const PIO &output) const {
+  m_shallow_stress_balance->define_model_state(output);
+  m_modifier->define_model_state(output);
 }
 
-
-void StressBalance::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-
-  m_shallow_stress_balance->write_variables(vars, nc);
-  m_modifier->write_variables(vars, nc);
+void StressBalance::write_model_state_impl(const PIO &output) const {
+  m_shallow_stress_balance->write_model_state(output);
+  m_modifier->write_model_state(output);
 }
 
-void StressBalance::add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result) {
+//! \brief Compute eigenvalues of the horizontal, vertically-integrated strain rate tensor.
+/*!
+Calculates all components \f$D_{xx}, D_{yy}, D_{xy}=D_{yx}\f$ of the
+vertically-averaged strain rate tensor \f$D\f$ [\ref SchoofStream].  Then computes
+the eigenvalues `result(i,j,0)` = (maximum eigenvalue), `result(i,j,1)` = (minimum
+eigenvalue).  Uses the provided thickness to make decisions (PIK) about computing
+strain rates near calving front.
 
-  m_shallow_stress_balance->add_vars_to_output(keyword, result);
-  m_modifier->add_vars_to_output(keyword, result);
+Note that `result(i,j,0)` >= `result(i,j,1)`, but there is no necessary relation between
+the magnitudes, and either principal strain rate could be negative or positive.
+
+Result can be used in a calving law, for example in eigencalving (PIK).
+
+Note: strain rates will be derived from SSA velocities, using ghosts when
+necessary. Both implementations (SSAFD and SSAFEM) call
+update_ghosts() to ensure that ghost values are up to date.
+ */
+void compute_2D_principal_strain_rates(const IceModelVec2V &V,
+                                       const IceModelVec2CellType &mask,
+                                       IceModelVec2 &result) {
+
+  using mask::ice_free;
+
+  IceGrid::ConstPtr grid = result.get_grid();
+  double    dx = grid->dx(), dy = grid->dy();
+
+  if (result.get_ndof() != 2) {
+    throw RuntimeError(PISM_ERROR_LOCATION, "result.dof() == 2 is required");
+  }
+
+  IceModelVec::AccessList list;
+  list.add(V);
+  list.add(result);
+  list.add(mask);
+
+  for (Points p(*grid); p; p.next()) {
+    const int i = p.i(), j = p.j();
+
+    if (mask.ice_free(i,j)) {
+      result(i,j,0) = 0.0;
+      result(i,j,1) = 0.0;
+      continue;
+    }
+
+    StarStencil<int> m = mask.int_star(i,j);
+    StarStencil<Vector2> U = V.star(i,j);
+
+    // strain in units s-1
+    double u_x = 0, u_y = 0, v_x = 0, v_y = 0,
+      east = 1, west = 1, south = 1, north = 1;
+
+    // Computes u_x using second-order centered finite differences written as
+    // weighted sums of first-order one-sided finite differences.
+    //
+    // Given the cell layout
+    // *----n----*
+    // |         |
+    // |         |
+    // w         e
+    // |         |
+    // |         |
+    // *----s----*
+    // east == 0 if the east neighbor of the current cell is ice-free. In
+    // this case we use the left- (west-) sided difference.
+    //
+    // If both neighbors in the east-west (x) direction are ice-free the
+    // x-derivative is set to zero (see u_x, v_x initialization above).
+    //
+    // Similarly in other directions.
+    if (ice_free(m.e)) {
+      east = 0;
+    }
+    if (ice_free(m.w)) {
+      west = 0;
+    }
+    if (ice_free(m.n)) {
+      north = 0;
+    }
+    if (ice_free(m.s)) {
+      south = 0;
+    }
+
+    if (west + east > 0) {
+      u_x = 1.0 / (dx * (west + east)) * (west * (U.ij.u - U[West].u) + east * (U[East].u - U.ij.u));
+      v_x = 1.0 / (dx * (west + east)) * (west * (U.ij.v - U[West].v) + east * (U[East].v - U.ij.v));
+    }
+
+    if (south + north > 0) {
+      u_y = 1.0 / (dy * (south + north)) * (south * (U.ij.u - U[South].u) + north * (U[North].u - U.ij.u));
+      v_y = 1.0 / (dy * (south + north)) * (south * (U.ij.v - U[South].v) + north * (U[North].v - U.ij.v));
+    }
+
+    const double A = 0.5 * (u_x + v_y),  // A = (1/2) trace(D)
+      B   = 0.5 * (u_x - v_y),
+      Dxy = 0.5 * (v_x + u_y),  // B^2 = A^2 - u_x v_y
+      q   = sqrt(PetscSqr(B) + PetscSqr(Dxy));
+    result(i,j,0) = A + q;
+    result(i,j,1) = A - q; // q >= 0 so e1 >= e2
+
+  }
 }
 
 } // end of namespace stressbalance

@@ -31,24 +31,24 @@
 
 namespace pism {
 
-// FIXME: remove unused commented-out code.
-
 //! \file iMfractures.cc implementing calculation of fracture density with PIK options -fractures.
 
 void IceModel::calculateFractureDensity() {
   const double dx = m_grid->dx(), dy = m_grid->dy(), Mx = m_grid->Mx(), My = m_grid->My();
 
-  IceModelVec2S &D = m_fracture.density, &A = m_fracture.age, &D_new = m_work2d[0], &A_new = m_work2d[1];
+  IceModelVec2S &D = m_fracture->density, &A = m_fracture->age, &D_new = m_work2d[0], &A_new = m_work2d[1];
 
   // get SSA velocities and related strain rates and stresses
   const IceModelVec2V &ssa_velocity = m_stress_balance->advective_velocity();
-  m_stress_balance->compute_2D_principal_strain_rates(ssa_velocity, m_cell_type, m_strain_rates);
-  m_stress_balance->compute_2D_stresses(ssa_velocity, m_cell_type, m_deviatoric_stresses);
+  IceModelVec2 &strain_rates = m_fracture->strain_rates;
+  IceModelVec2 &deviatoric_stresses = m_fracture->deviatoric_stresses;
+  stressbalance::compute_2D_principal_strain_rates(ssa_velocity, m_cell_type, strain_rates);
+  m_stress_balance->compute_2D_stresses(ssa_velocity, m_cell_type, deviatoric_stresses);
 
   IceModelVec::AccessList list;
   list.add(ssa_velocity);
-  list.add(m_strain_rates);
-  list.add(m_deviatoric_stresses);
+  list.add(strain_rates);
+  list.add(deviatoric_stresses);
 
   list.add(m_ice_thickness);
   list.add(D);
@@ -64,10 +64,10 @@ void IceModel::calculateFractureDensity() {
 
   const bool write_fd = m_config->get_boolean("fracture_density.write_fields");
   if (write_fd) {
-    list.add(m_fracture.growth_rate);
-    list.add(m_fracture.healing_rate);
-    list.add(m_fracture.flow_enhancement);
-    list.add(m_fracture.toughness);
+    list.add(m_fracture->growth_rate);
+    list.add(m_fracture->healing_rate);
+    list.add(m_fracture->flow_enhancement);
+    list.add(m_fracture->toughness);
     list.add(A);
     A_new.copy_from(A);
     list.add(A_new);
@@ -97,7 +97,7 @@ void IceModel::calculateFractureDensity() {
 
   if (fractures.is_set()) {
     if (fractures->size() != 4) {
-      throw RuntimeError("option -fractures requires exactly 4 arguments");
+      throw RuntimeError(PISM_ERROR_LOCATION, "option -fractures requires exactly 4 arguments");
     }
     gamma         = fractures[0];
     initThreshold = fractures[1];
@@ -109,21 +109,21 @@ void IceModel::calculateFractureDensity() {
                     " gamma=%.2f, sigma_cr=%.2f, gammah=%.2f, healing_cr=%.1e and soft_res=%f \n",
                  gamma, initThreshold, gammaheal, healThreshold, soft_residual);
 
-  bool do_fracground = options::Bool("-do_frac_on_grounded", "model fracture density in grounded areas");
+  bool do_fracground = m_config->get_boolean("fracture_density.include_grounded_ice");
 
-  double fdBoundaryValue = options::Real("-phi0", "phi0", 0.0);
+  double fdBoundaryValue = m_config->get_double("fracture_density.phi0");
 
-  bool constant_healing = options::Bool("-constant_healing", "constant healing");
+  bool constant_healing = m_config->get_boolean("fracture_density.constant_healing");
 
-  bool fracture_weighted_healing = options::Bool("-fracture_weighted_healing", "fracture weighted healing");
+  bool fracture_weighted_healing = m_config->get_boolean("fracture_density.fracture_weighted_healing");
 
-  bool max_shear_stress = options::Bool("-max_shear", "max shear");
+  bool max_shear_stress = m_config->get_boolean("fracture_density.max_shear_stress");
 
-  bool lefm = options::Bool("-lefm", "lefm");
+  bool lefm = m_config->get_boolean("fracture_density.lefm");
 
-  bool constant_fd = options::Bool("-constant_fd", "constant fd");
+  bool constant_fd = m_config->get_boolean("fracture_density.constant_fd");
 
-  bool fd2d_scheme = options::Bool("-scheme_fd2d", "scheme fd2d");
+  bool fd2d_scheme = m_config->get_boolean("fracture_density.fd2d_scheme");
 
   const double one_year = units::convert(m_sys, 1.0, "year", "seconds");
 
@@ -167,9 +167,10 @@ void IceModel::calculateFractureDensity() {
     //sources /////////////////////////////////////////////////////////////////
     ///von mises criterion
 
-    double txx = m_deviatoric_stresses(i, j, 0),
-      tyy    = m_deviatoric_stresses(i, j, 1),
-      txy    = m_deviatoric_stresses(i, j, 2),
+    double
+      txx    = deviatoric_stresses(i, j, 0),
+      tyy    = deviatoric_stresses(i, j, 1),
+      txy    = deviatoric_stresses(i, j, 2),
       T1     = 0.5 * (txx + tyy) + sqrt(0.25 * PetscSqr(txx - tyy) + PetscSqr(txy)), //Pa
       T2     = 0.5 * (txx + tyy) - sqrt(0.25 * PetscSqr(txx - tyy) + PetscSqr(txy)), //Pa
       sigmat = sqrt(PetscSqr(T1) + PetscSqr(T2) - T1 * T2);
@@ -233,13 +234,13 @@ void IceModel::calculateFractureDensity() {
     //////////////////////////////////////////////////////////////////////////////
 
     //fracture density
-    double fdnew = gamma * (m_strain_rates(i, j, 0) - 0.0) * (1 - D_new(i, j));
+    double fdnew = gamma * (strain_rates(i, j, 0) - 0.0) * (1 - D_new(i, j));
     if (sigmat > initThreshold) {
       D_new(i, j) += fdnew * m_dt;
     }
 
     //healing
-    double fdheal = gammaheal * (m_strain_rates(i, j, 0) - healThreshold);
+    double fdheal = gammaheal * (strain_rates(i, j, 0) - healThreshold);
     if (m_ice_thickness(i, j) > 0.0) {
       if (constant_healing) {
         fdheal = gammaheal * (-healThreshold);
@@ -248,7 +249,7 @@ void IceModel::calculateFractureDensity() {
         } else {
           D_new(i, j) += fdheal * m_dt;
         }
-      } else if (m_strain_rates(i, j, 0) < healThreshold) {
+      } else if (strain_rates(i, j, 0) < healThreshold) {
         if (fracture_weighted_healing) {
           D_new(i, j) += fdheal * m_dt * (1 - D(i, j));
         } else {
@@ -271,26 +272,26 @@ void IceModel::calculateFractureDensity() {
     // if option -write_fd_fields is set
     if (write_fd && m_ice_thickness(i, j) > 0.0) {
       //fracture toughness
-      m_fracture.toughness(i, j) = sigmat;
+      m_fracture->toughness(i, j) = sigmat;
 
       // fracture growth rate
       if (sigmat > initThreshold) {
-        m_fracture.growth_rate(i, j) = fdnew;
-        //m_fracture.growth_rate(i,j)=gamma*(vPrinStrain1(i,j)-0.0)*(1-D_new(i,j));
+        m_fracture->growth_rate(i, j) = fdnew;
+        //m_fracture->growth_rate(i,j)=gamma*(vPrinStrain1(i,j)-0.0)*(1-D_new(i,j));
       } else {
-        m_fracture.growth_rate(i, j) = 0.0;
+        m_fracture->growth_rate(i, j) = 0.0;
       }
 
       // fracture healing rate
       if (m_ice_thickness(i, j) > 0.0) {
-        if (constant_healing || (m_strain_rates(i, j, 0) < healThreshold)) {
+        if (constant_healing || (strain_rates(i, j, 0) < healThreshold)) {
           if (fracture_weighted_healing) {
-            m_fracture.healing_rate(i, j) = fdheal * (1 - D(i, j));
+            m_fracture->healing_rate(i, j) = fdheal * (1 - D(i, j));
           } else {
-            m_fracture.healing_rate(i, j) = fdheal;
+            m_fracture->healing_rate(i, j) = fdheal;
           }
         } else {
-          m_fracture.healing_rate(i, j) = 0.0;
+          m_fracture->healing_rate(i, j) = 0.0;
         }
       }
 
@@ -306,9 +307,9 @@ void IceModel::calculateFractureDensity() {
       double phi_exp   = 3.0; //flow_law->exponent();
       double softening = pow((1.0 - (1.0 - soft_residual) * D_new(i, j)), -phi_exp);
       if (m_ice_thickness(i, j) > 0.0) {
-        m_fracture.flow_enhancement(i, j) = 1.0 / pow(softening, 1 / 3.0);
+        m_fracture->flow_enhancement(i, j) = 1.0 / pow(softening, 1 / 3.0);
       } else {
-        m_fracture.flow_enhancement(i, j) = 1.0;
+        m_fracture->flow_enhancement(i, j) = 1.0;
       }
     }
 
@@ -321,10 +322,10 @@ void IceModel::calculateFractureDensity() {
 
         if (write_fd) {
           A_new(i, j)                       = 0.0;
-          m_fracture.growth_rate(i, j)      = 0.0;
-          m_fracture.healing_rate(i, j)     = 0.0;
-          m_fracture.flow_enhancement(i, j) = 1.0;
-          m_fracture.toughness(i, j)        = 0.0;
+          m_fracture->growth_rate(i, j)      = 0.0;
+          m_fracture->healing_rate(i, j)     = 0.0;
+          m_fracture->flow_enhancement(i, j) = 1.0;
+          m_fracture->toughness(i, j)        = 0.0;
         }
       }
     }
@@ -333,10 +334,10 @@ void IceModel::calculateFractureDensity() {
       D_new(i, j) = 0.0;
       if (write_fd) {
         A_new(i, j)                       = 0.0;
-        m_fracture.growth_rate(i, j)      = 0.0;
-        m_fracture.healing_rate(i, j)     = 0.0;
-        m_fracture.flow_enhancement(i, j) = 1.0;
-        m_fracture.toughness(i, j)        = 0.0;
+        m_fracture->growth_rate(i, j)      = 0.0;
+        m_fracture->healing_rate(i, j)     = 0.0;
+        m_fracture->flow_enhancement(i, j) = 1.0;
+        m_fracture->toughness(i, j)        = 0.0;
       }
     }
 

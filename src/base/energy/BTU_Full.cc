@@ -43,13 +43,13 @@ BTU_Full::BTU_Full(IceGrid::ConstPtr g, const BTUGrid &grid)
 
   // validate Lbz
   if (grid.Lbz <= 0.0) {
-    throw RuntimeError::formatted("Invalid bedrock thermal layer depth: %f m",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Invalid bedrock thermal layer depth: %f m",
                                   grid.Lbz);
   }
 
   // validate Mbz
   if (grid.Mbz < 2) {
-    throw RuntimeError::formatted("Invalid number of layers of the bedrock thermal layer: %d",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Invalid number of layers of the bedrock thermal layer: %d",
                                   grid.Mbz);
   }
 
@@ -97,8 +97,7 @@ void BTU_Full::init_impl(const InputOptions &opts) {
     const int temp_revision = m_temp.get_state_counter();
 
     if (opts.type == INIT_RESTART) {
-      PIO input_file(m_grid->com, "guess_mode");
-      input_file.open(opts.filename, PISM_READONLY);
+      PIO input_file(m_grid->com, "guess_mode", opts.filename, PISM_READONLY);
 
       if (input_file.inq_var("litho_temp")) {
         m_temp.read(input_file, opts.record);
@@ -135,27 +134,14 @@ double BTU_Full::depth_impl() const {
   return m_Lbz;
 }
 
-void BTU_Full::add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result) {
-  result.insert(m_temp.metadata().get_name());
-
-  BedThermalUnit::add_vars_to_output_impl(keyword, result);
+void BTU_Full::define_model_state_impl(const PIO &output) const {
+  m_bottom_surface_flux.define(output);
+  m_temp.define(output);
 }
 
-void BTU_Full::define_variables_impl(const std::set<std::string> &vars,
-                                     const PIO &nc, IO_Type nctype) {
-  if (set_contains(vars, m_temp.metadata().get_name())) {
-    m_temp.define(nc, nctype);
-  }
-
-  BedThermalUnit::define_variables_impl(vars, nc, nctype);
-}
-
-void BTU_Full::write_variables_impl(const std::set<std::string> &vars, const PIO &nc) {
-  if (set_contains(vars, m_temp.metadata().get_name())) {
-    m_temp.write(nc);
-  }
-
-  BedThermalUnit::write_variables_impl(vars, nc);
+void BTU_Full::write_model_state_impl(const PIO &output) const {
+  m_bottom_surface_flux.write(output);
+  m_temp.write(output);
 }
 
 /*! Because the grid for the bedrock thermal layer is equally-spaced, and because
@@ -173,12 +159,12 @@ void BTU_Full::write_variables_impl(const std::set<std::string> &vars, const PIO
 
   The above describes the general case where Mbz > 1.
 */
-MaxTimestep BTU_Full::max_timestep_impl(double t) {
+MaxTimestep BTU_Full::max_timestep_impl(double t) const {
   (void) t;
 
   const double dz = vertical_spacing();
   // max dt from stability; in seconds
-  return MaxTimestep(dz * dz / (2.0 * m_D));
+  return MaxTimestep(dz * dz / (2.0 * m_D), "bedrock thermal layer");
 }
 
 
@@ -209,7 +195,7 @@ void BTU_Full::update_impl(const IceModelVec2S &bedrock_top_temperature,
 
   // CHECK: is the desired time interval a forward step?; backward heat equation not good!
   if (dt < 0) {
-    throw RuntimeError("BTU_Full::update() does not allow negative timesteps");
+    throw RuntimeError(PISM_ERROR_LOCATION, "BTU_Full::update() does not allow negative timesteps");
   }
 
   // CHECK: is desired time-interval equal to [t, t+dt] where t = t + dt?
@@ -227,7 +213,7 @@ void BTU_Full::update_impl(const IceModelVec2S &bedrock_top_temperature,
     }
 
     if (not contiguous) {
-      throw RuntimeError::formatted("BTU_Full::update() requires next update to be contiguous with last;\n"
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "BTU_Full::update() requires next update to be contiguous with last;\n"
                                     "  stored:     t = %f s,    dt = %f s\n"
                                     "  desired: t = %f s, dt = %f s",
                                     m_t, m_dt, t, dt); }
@@ -235,8 +221,8 @@ void BTU_Full::update_impl(const IceModelVec2S &bedrock_top_temperature,
 
   // CHECK: is desired time-step too long?
   MaxTimestep max_dt = max_timestep(t);
-  if (max_dt.is_finite() and max_dt.value() < dt) {
-    throw RuntimeError("BTU_Full::update() thinks you asked for too big a timestep.");
+  if (max_dt.finite() and max_dt.value() < dt) {
+    throw RuntimeError(PISM_ERROR_LOCATION, "BTU_Full::update() thinks you asked for too big a timestep.");
   }
 
   // o.k., we have checked; we are going to do the desired timestep!
@@ -255,21 +241,37 @@ void BTU_Full::update_impl(const IceModelVec2S &bedrock_top_temperature,
   list.add(m_bottom_surface_flux);
   list.add(bedrock_top_temperature);
 
-  for (Points p(*m_grid); p; p.next()) {
-    const int i = p.i(), j = p.j();
+  ParallelSection loop(m_grid->com);
+  try {
+    for (Points p(*m_grid); p; p.next()) {
+      const int i = p.i(), j = p.j();
 
-    double *Tbold = m_temp.get_column(i, j); // Tbold actually points into temp memory
-    Tbold[k0] = bedrock_top_temperature(i, j);  // sets Dirichlet explicit-in-time b.c. at top of bedrock column
+      double *Tbold = m_temp.get_column(i, j); // Tbold actually points into temp memory
+      Tbold[k0] = bedrock_top_temperature(i, j);  // sets Dirichlet explicit-in-time b.c. at top of bedrock column
 
-    const double Tbold_negone = Tbold[1] + 2 * m_bottom_surface_flux(i, j) * dz / m_k;
-    Tbnew[0] = Tbold[0] + R * (Tbold_negone - 2 * Tbold[0] + Tbold[1]);
-    for (int k = 1; k < k0; k++) { // working upward from base
-      Tbnew[k] = Tbold[k] + R * (Tbold[k-1] - 2 * Tbold[k] + Tbold[k+1]);
+      const double Tbold_negone = Tbold[1] + 2 * m_bottom_surface_flux(i, j) * dz / m_k;
+      Tbnew[0] = Tbold[0] + R * (Tbold_negone - 2 * Tbold[0] + Tbold[1]);
+      for (int k = 1; k < k0; k++) { // working upward from base
+        Tbnew[k] = Tbold[k] + R * (Tbold[k-1] - 2 * Tbold[k] + Tbold[k+1]);
+      }
+      Tbnew[k0] = bedrock_top_temperature(i, j);
+
+      // Check that Tbnew is positive:
+      for (int k = 0; k <= k0; ++k) {
+        if (Tbnew[k] <= 0.0) {
+          throw RuntimeError::formatted(PISM_ERROR_LOCATION,
+                                        "invalid bedrock temperature: %f", Tbnew[k]);
+        }
+      }
+
+      m_temp.set_column(i, j, &Tbnew[0]); // copy from Tbnew into temp memory
     }
-    Tbnew[k0] = bedrock_top_temperature(i, j);
-
-    m_temp.set_column(i, j, &Tbnew[0]); // copy from Tbnew into temp memory
+  } catch (...) {
+    loop.failed();
   }
+  loop.check();
+
+
 
   update_flux_through_top_surface();
 }
@@ -322,7 +324,7 @@ void BTU_Full::update_flux_through_top_surface() {
 
 const IceModelVec3Custom& BTU_Full::temperature() const {
   if (m_bootstrapping_needed) {
-    throw RuntimeError("bedrock temperature is not available (bootstrapping is needed)");
+    throw RuntimeError(PISM_ERROR_LOCATION, "bedrock temperature is not available (bootstrapping is needed)");
   }
 
   return m_temp;

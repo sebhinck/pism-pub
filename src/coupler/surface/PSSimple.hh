@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -21,7 +21,6 @@
 
 #include "coupler/PISMSurface.hh"
 #include "coupler/PISMAtmosphere.hh"
-#include "base/util/VariableMetadata.hh"
 
 namespace pism {
 namespace surface {
@@ -44,17 +43,12 @@ public:
   Simple(IceGrid::ConstPtr g);
 protected:
   virtual void init_impl();
-  virtual void ice_surface_mass_flux_impl(IceModelVec2S &result);
-
-  virtual void ice_surface_temperature_impl(IceModelVec2S &result);
-  virtual MaxTimestep max_timestep_impl(double t);
   virtual void update_impl(double my_t, double my_dt);
-  virtual void write_variables_impl(const std::set<std::string> &vars, const PIO &nc);
-  virtual void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result);
-  virtual void define_variables_impl(const std::set<std::string> &vars,
-                                     const PIO &nc, IO_Type nctype);
-protected:
-  SpatialVariableMetadata climatic_mass_balance, ice_surface_temp;
+
+  virtual void ice_surface_mass_flux_impl(IceModelVec2S &result) const;
+  virtual void ice_surface_temperature_impl(IceModelVec2S &result) const;
+
+  virtual MaxTimestep max_timestep_impl(double t) const;
 };
 
 } // end of namespace surface

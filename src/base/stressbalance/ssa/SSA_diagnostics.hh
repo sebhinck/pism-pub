@@ -1,4 +1,4 @@
-/* Copyright (C) 2014, 2015 PISM Authors
+/* Copyright (C) 2014, 2015, 2016 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -31,7 +31,7 @@ namespace stressbalance {
 class SSA_taud_mag : public Diag<SSA>
 {
 public:
-  SSA_taud_mag(SSA *m);
+  SSA_taud_mag(const SSA *m);
 protected:
   virtual IceModelVec::Ptr compute_impl();
 };
@@ -44,11 +44,19 @@ protected:
 class SSA_taud : public Diag<SSA>
 {
 public:
-  SSA_taud(SSA *m);
+  SSA_taud(const SSA *m);
 protected:
   virtual IceModelVec::Ptr compute_impl();
 };
 
+/*! @brief Ocean pressure difference at calving fronts. Used to debug CF boundary conditins. */
+class SSA_calving_front_pressure_difference : public Diag<SSA>
+{
+public:
+  SSA_calving_front_pressure_difference(SSA *m);
+protected:
+  IceModelVec::Ptr compute_impl();
+};
 
 } // end of namespace stressbalance
 } // end of namespace pism

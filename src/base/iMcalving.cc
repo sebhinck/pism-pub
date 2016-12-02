@@ -25,6 +25,7 @@
 #include "base/calving/CalvingAtThickness.hh"
 #include "base/calving/EigenCalving.hh"
 #include "base/calving/vonMisesCalving.hh"
+#include "base/calving/FrontalMelt.hh"
 #include "base/calving/FloatKill.hh"
 #include "base/calving/IcebergRemover.hh"
 #include "base/calving/OceanKill.hh"
@@ -76,6 +77,15 @@ void IceModel::do_calving() {
                                m_ice_thickness);
   }
 
+  if (m_frontal_melt != NULL) {
+    m_frontal_melt->update(m_dt,
+                           m_ocean->sea_level_elevation(),
+                           m_beddef->bed_elevation(),
+                           m_cell_type,
+                           m_Href,
+                           m_ice_thickness);
+  }
+
   if (m_ocean_kill_calving != NULL) {
     m_ocean_kill_calving->update(m_cell_type, m_ice_thickness);
   }
@@ -89,13 +99,13 @@ void IceModel::do_calving() {
   }
 
   // This call removes icebergs, too.
-  updateSurfaceElevationAndMask();
+  enforce_consistency_of_geometry();
 
   Href_cleanup();
 
   // note that Href_cleanup() changes ice thickness, so we have to
   // update the mask and surface elevation.
-  updateSurfaceElevationAndMask();
+  enforce_consistency_of_geometry();
 
   update_cumulative_discharge(m_ice_thickness, old_H, m_Href, old_Href);
 }
@@ -148,9 +158,8 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
                                            const IceModelVec2S &Href_old) {
 
   const double ice_density = m_config->get_double("constants.ice.density");
-  const bool
-    use_Href = Href.was_created() && Href_old.was_created();
-  double local_discharge = 0.0, total_discharge = 0.0;
+  const bool use_Href = Href.was_created() and Href_old.was_created();
+  double total_discharge = 0.0;
 
   IceModelVec::AccessList list;
   list.add(thickness);
@@ -159,7 +168,7 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
   list.add(m_cell_area);
 
 
-  list.add(m_discharge_flux_2D_cumulative);
+  list.add(m_cumulative_flux_fields.discharge);
 
   if (use_Href) {
     list.add(Href);
@@ -175,7 +184,7 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
         delta_Href = 0.0,
         discharge  = 0.0;
 
-      if (use_Href == true) {
+      if (use_Href) {
         delta_Href = Href(i,j) - Href_old(i,j);
         // Only count mass loss. (A cell may stay "partially-filled"
         // for several time-steps as the calving front advances. In
@@ -190,15 +199,13 @@ void IceModel::update_cumulative_discharge(const IceModelVec2S &thickness,
 
       discharge = (delta_H + delta_Href) * m_cell_area(i,j) * ice_density;
 
-      m_discharge_flux_2D_cumulative(i,j) += discharge;
+      m_cumulative_flux_fields.discharge(i, j) += discharge;
 
-      local_discharge += discharge;
+      total_discharge += discharge;
     }
   }
 
-  total_discharge = GlobalSum(m_grid->com, local_discharge);
-
-  m_cumulative_fluxes.discharge += total_discharge;
+  m_cumulative_fluxes.discharge += GlobalSum(m_grid->com, total_discharge);
 }
 
 } // end of namespace pism

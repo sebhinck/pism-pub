@@ -31,12 +31,24 @@
 #include "base/util/io/PIO.hh"
 #include "base/util/PISMVars.hh"
 #include "base/util/Logger.hh"
+#include "base/util/projection.hh"
 
 namespace pism {
 
 //! Internal structures of IceGrid.
 struct IceGrid::Impl {
+  Impl(Context::ConstPtr ctx);
+
+  petsc::DM::Ptr create_dm(int da_dof, int stencil_width) const;
+  void set_ownership_ranges(const std::vector<unsigned int> &procs_x,
+                            const std::vector<unsigned int> &procs_y);
+
+  void compute_horizontal_coordinates();
+
+
   Context::ConstPtr ctx;
+
+  MappingInfo mapping_info;
 
   // int to match types used by MPI
   int rank;
@@ -92,6 +104,11 @@ struct IceGrid::Impl {
   gsl_interp_accel *bsearch_accel;
 };
 
+IceGrid::Impl::Impl(Context::ConstPtr context)
+  : ctx(context), mapping_info("mapping", ctx->unit_system()) {
+  // empty
+}
+
 //! Convert a string to Periodicity.
 Periodicity string_to_periodicity(const std::string &keyword) {
     if (keyword == "none") {
@@ -103,7 +120,7 @@ Periodicity string_to_periodicity(const std::string &keyword) {
   } else if (keyword == "xy") {
     return XY_PERIODIC;
   } else {
-    throw RuntimeError::formatted("grid periodicity type '%s' is invalid.",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "grid periodicity type '%s' is invalid.",
                                   keyword.c_str());
   }
 }
@@ -130,7 +147,7 @@ SpacingType string_to_spacing(const std::string &keyword) {
   } else if (keyword == "equal") {
     return EQUAL;
   } else {
-    throw RuntimeError::formatted("ice vertical spacing type '%s' is invalid.",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "ice vertical spacing type '%s' is invalid.",
                                   keyword.c_str());
   }
 }
@@ -181,14 +198,12 @@ IceGrid::Ptr IceGrid::Shallow(Context::ConstPtr ctx,
 
 //! @brief Create a PISM distributed computational grid.
 IceGrid::IceGrid(Context::ConstPtr context, const GridParameters &p)
-  : com(context->com()), m_impl(new Impl) {
+  : com(context->com()), m_impl(new Impl(context)) {
 
   try {
-    m_impl->ctx = context;
-
     m_impl->bsearch_accel = gsl_interp_accel_alloc();
     if (m_impl->bsearch_accel == NULL) {
-      throw RuntimeError("Failed to allocate a GSL interpolation accelerator");
+      throw RuntimeError(PISM_ERROR_LOCATION, "Failed to allocate a GSL interpolation accelerator");
     }
 
     MPI_Comm_rank(com, &m_impl->rank);
@@ -204,9 +219,9 @@ IceGrid::IceGrid(Context::ConstPtr context, const GridParameters &p)
     m_impl->Ly = p.Ly;
     m_impl->periodicity = p.periodicity;
     m_impl->z = p.z;
-    this->set_ownership_ranges(p.procs_x, p.procs_y);
+    m_impl->set_ownership_ranges(p.procs_x, p.procs_y);
 
-    compute_horizontal_coordinates();
+    m_impl->compute_horizontal_coordinates();
 
     {
       unsigned int max_stencil_width = (unsigned int)context->config()->get_double("grid.max_stencil_width");
@@ -245,8 +260,7 @@ IceGrid::Ptr IceGrid::FromFile(Context::ConstPtr ctx,
                                const std::vector<std::string> &var_names,
                                Periodicity periodicity) {
 
-  PIO file(ctx->com(), "netcdf3");
-  file.open(filename, PISM_READONLY); // will be closed automatically
+  PIO file(ctx->com(), "netcdf3", filename, PISM_READONLY);
 
   for (unsigned int k = 0; k < var_names.size(); ++k) {
     if (file.inq_var(var_names[k])) {
@@ -254,7 +268,7 @@ IceGrid::Ptr IceGrid::FromFile(Context::ConstPtr ctx,
     }
   }
 
-  throw RuntimeError::formatted("file %s does not have any of %s."
+  throw RuntimeError::formatted(PISM_ERROR_LOCATION, "file %s does not have any of %s."
                                 " Cannot initialize the grid.",
                                 filename.c_str(),
                                 join(var_names, ",").c_str());
@@ -322,15 +336,15 @@ std::vector<double> IceGrid::compute_vertical_levels(double new_Lz, unsigned int
                                                      SpacingType spacing, double lambda) {
 
   if (new_Mz < 2) {
-    throw RuntimeError("Mz must be at least 2");
+    throw RuntimeError(PISM_ERROR_LOCATION, "Mz must be at least 2");
   }
 
   if (new_Lz <= 0) {
-    throw RuntimeError("Lz must be positive");
+    throw RuntimeError(PISM_ERROR_LOCATION, "Lz must be positive");
   }
 
   if (spacing == QUADRATIC and lambda <= 0) {
-    throw RuntimeError("lambda must be positive");
+    throw RuntimeError(PISM_ERROR_LOCATION, "lambda must be positive");
   }
 
   std::vector<double> result(new_Mz);
@@ -357,7 +371,7 @@ std::vector<double> IceGrid::compute_vertical_levels(double new_Lz, unsigned int
     break;
   }
   default:
-    throw RuntimeError("spacing can not be UNKNOWN");
+    throw RuntimeError(PISM_ERROR_LOCATION, "spacing can not be UNKNOWN");
   }
 
   return result;
@@ -367,12 +381,12 @@ std::vector<double> IceGrid::compute_vertical_levels(double new_Lz, unsigned int
 unsigned int IceGrid::kBelowHeight(double height) const {
 
   if (height < 0.0 - 1.0e-6) {
-    throw RuntimeError::formatted("height = %5.4f is below base of ice"
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "height = %5.4f is below base of ice"
                                   " (height must be non-negative)\n", height);
   }
 
   if (height > Lz() + 1.0e-6) {
-    throw RuntimeError::formatted("height = %5.4f is above top of computational"
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "height = %5.4f is above top of computational"
                                   " grid Lz = %5.4f\n", height, Lz());
   }
 
@@ -384,7 +398,7 @@ static void compute_nprocs(unsigned int Mx, unsigned int My, unsigned int size,
                            unsigned int &Nx, unsigned int &Ny) {
 
   if (My <= 0) {
-    throw RuntimeError("'My' is invalid.");
+    throw RuntimeError(PISM_ERROR_LOCATION, "'My' is invalid.");
   }
 
   Nx = (unsigned int)(0.5 + sqrt(((double)Mx)*((double)size)/((double)My)));
@@ -410,12 +424,12 @@ static void compute_nprocs(unsigned int Mx, unsigned int My, unsigned int size,
   }
 
   if ((Mx / Nx) < 2) {          // note: integer division
-    throw RuntimeError::formatted("Can't split %d grid points into %d parts (X-direction).",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Can't split %d grid points into %d parts (X-direction).",
                                   Mx, (int)Nx);
   }
 
   if ((My / Ny) < 2) {          // note: integer division
-    throw RuntimeError::formatted("Can't split %d grid points into %d parts (Y-direction).",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Can't split %d grid points into %d parts (Y-direction).",
                                   My, (int)Ny);
   }
 }
@@ -435,20 +449,20 @@ static std::vector<unsigned int> ownership_ranges(unsigned int Mx,
 }
 
 //! Set processor ownership ranges. Takes care of type conversion (`unsigned int` -> `PetscInt`).
-void IceGrid::set_ownership_ranges(const std::vector<unsigned int> &procs_x,
-                                   const std::vector<unsigned int> &procs_y) {
-  if (procs_x.size() * procs_y.size() != size()) {
-    throw RuntimeError("length(procs_x) * length(procs_y) != MPI size");
+void IceGrid::Impl::set_ownership_ranges(const std::vector<unsigned int> &input_procs_x,
+                                         const std::vector<unsigned int> &input_procs_y) {
+  if (input_procs_x.size() * input_procs_y.size() != (size_t)size) {
+    throw RuntimeError(PISM_ERROR_LOCATION, "length(procs_x) * length(procs_y) != MPI size");
   }
 
-  m_impl->procs_x.resize(procs_x.size());
-  for (unsigned int k = 0; k < procs_x.size(); ++k) {
-    m_impl->procs_x[k] = procs_x[k];
+  procs_x.resize(input_procs_x.size());
+  for (unsigned int k = 0; k < input_procs_x.size(); ++k) {
+    procs_x[k] = input_procs_x[k];
   }
 
-  m_impl->procs_y.resize(procs_y.size());
-  for (unsigned int k = 0; k < procs_y.size(); ++k) {
-    m_impl->procs_y[k] = procs_y[k];
+  procs_y.resize(input_procs_y.size());
+  for (unsigned int k = 0; k < input_procs_y.size(); ++k) {
+    procs_y[k] = input_procs_y[k];
   }
 }
 
@@ -473,17 +487,17 @@ static OwnershipRanges compute_ownership_ranges(unsigned int Mx,
   // validate results (compute_nprocs checks its results, but we also need to validate command-line
   // options)
   if ((Mx / Nx) < 2) {
-    throw RuntimeError::formatted("Can't split %d grid points into %d parts (X-direction).",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Can't split %d grid points into %d parts (X-direction).",
                                   Mx, (int)Nx);
   }
 
   if ((My / Ny) < 2) {
-    throw RuntimeError::formatted("Can't split %d grid points into %d parts (Y-direction).",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Can't split %d grid points into %d parts (Y-direction).",
                                   My, (int)Ny);
   }
 
   if (Nx * Ny != (int)size) {
-    throw RuntimeError::formatted("Nx * Ny has to be equal to %d.", size);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Nx * Ny has to be equal to %d.", size);
   }
 
   // check -procs_x and -procs_y
@@ -492,7 +506,7 @@ static OwnershipRanges compute_ownership_ranges(unsigned int Mx,
 
   if (procs_x.is_set()) {
     if (procs_x->size() != (unsigned int)Nx) {
-      throw RuntimeError("-Nx has to be equal to the -procs_x size.");
+      throw RuntimeError(PISM_ERROR_LOCATION, "-Nx has to be equal to the -procs_x size.");
     }
 
     result.x.resize(procs_x->size());
@@ -506,7 +520,7 @@ static OwnershipRanges compute_ownership_ranges(unsigned int Mx,
 
   if (procs_y.is_set()) {
     if (procs_y->size() != (unsigned int)Ny) {
-      throw RuntimeError("-Ny has to be equal to the -procs_y size.");
+      throw RuntimeError(PISM_ERROR_LOCATION, "-Ny has to be equal to the -procs_y size.");
     }
 
     result.y.resize(procs_y->size());
@@ -518,7 +532,7 @@ static OwnershipRanges compute_ownership_ranges(unsigned int Mx,
   }
 
   if (result.x.size() * result.y.size() != size) {
-    throw RuntimeError("length(procs_x) * length(procs_y) != MPI size");
+    throw RuntimeError(PISM_ERROR_LOCATION, "length(procs_x) * length(procs_y) != MPI size");
   }
 
   return result;
@@ -571,29 +585,29 @@ The upshot is that if one computes in a truly periodic way then the gap between 
 `i = 0`  and  `i = Mx - 1`  grid points should \em also have width  `dx`.
 Thus we compute  `dx = 2 * Lx / Mx`.
  */
-void IceGrid::compute_horizontal_coordinates() {
+void IceGrid::Impl::compute_horizontal_coordinates() {
 
-  m_impl->dx = compute_horizontal_spacing(m_impl->Lx, m_impl->Mx,
-                                          m_impl->periodicity & X_PERIODIC);
+  dx = compute_horizontal_spacing(Lx, Mx,
+                                  periodicity & X_PERIODIC);
 
-  m_impl->dy = compute_horizontal_spacing(m_impl->Ly, m_impl->My,
-                                          m_impl->periodicity & Y_PERIODIC);
-
-  double
-    x_min = m_impl->x0 - m_impl->Lx,
-    x_max = m_impl->x0 + m_impl->Lx;
-
-  m_impl->x = compute_coordinates(m_impl->Mx, m_impl->dx,
-                                  x_min, x_max,
-                                  m_impl->periodicity & X_PERIODIC);
+  dy = compute_horizontal_spacing(Ly, My,
+                                  periodicity & Y_PERIODIC);
 
   double
-    y_min = m_impl->y0 - m_impl->Ly,
-    y_max = m_impl->y0 + m_impl->Ly;
+    x_min = x0 - Lx,
+    x_max = x0 + Lx;
 
-  m_impl->y = compute_coordinates(m_impl->My, m_impl->dy,
-                                  y_min, y_max,
-                                  m_impl->periodicity & Y_PERIODIC);
+  x = compute_coordinates(Mx, dx,
+                          x_min, x_max,
+                          periodicity & X_PERIODIC);
+
+  double
+    y_min = y0 - Ly,
+    y_max = y0 + Ly;
+
+  y = compute_coordinates(My, dy,
+                          y_min, y_max,
+                          periodicity & Y_PERIODIC);
 }
 
 //! \brief Report grid parameters.
@@ -751,11 +765,11 @@ std::vector<double> IceGrid::compute_interp_weights(double X, double Y) const{
 // Computes the hash corresponding to the DM with given dof and stencil_width.
 static int dm_hash(int da_dof, int stencil_width) {
   if (da_dof < 0 or da_dof > 10000) {
-    throw RuntimeError::formatted("Invalid da_dof argument: %d", da_dof);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Invalid da_dof argument: %d", da_dof);
   }
 
   if (stencil_width < 0 or stencil_width > 10000) {
-    throw RuntimeError::formatted("Invalid stencil_width argument: %d", stencil_width);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Invalid stencil_width argument: %d", stencil_width);
   }
 
   return 10000 * da_dof + stencil_width;
@@ -769,7 +783,7 @@ petsc::DM::Ptr IceGrid::get_dm(int da_dof, int stencil_width) const {
   int j = dm_hash(da_dof, stencil_width);
 
   if (m_impl->dms[j].expired()) {
-    result = this->create_dm(da_dof, stencil_width);
+    result = m_impl->create_dm(da_dof, stencil_width);
     m_impl->dms[j] = result;
   } else {
     result = m_impl->dms[j].lock();
@@ -790,25 +804,25 @@ Context::ConstPtr IceGrid::ctx() const {
 
 //! @brief Create a DM with the given number of `dof` (degrees of freedom per grid point) and
 //! stencil width.
-petsc::DM::Ptr IceGrid::create_dm(int da_dof, int stencil_width) const {
+petsc::DM::Ptr IceGrid::Impl::create_dm(int da_dof, int stencil_width) const {
 
-  ctx()->log()->message(3,
-             "* Creating a DM with dof=%d and stencil_width=%d...\n",
-             da_dof, stencil_width);
+  ctx->log()->message(3,
+                      "* Creating a DM with dof=%d and stencil_width=%d...\n",
+                      da_dof, stencil_width);
 
   DM result;
-  PetscErrorCode ierr = DMDACreate2d(com,
+  PetscErrorCode ierr = DMDACreate2d(ctx->com(),
 #if PETSC_VERSION_LT(3,5,0)
                                      DMDA_BOUNDARY_PERIODIC, DMDA_BOUNDARY_PERIODIC,
 #else
                                      DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,
 #endif
                                      DMDA_STENCIL_BOX,
-                                     m_impl->Mx, m_impl->My, // M, N
-                                     (PetscInt)m_impl->procs_x.size(),
-                                     (PetscInt)m_impl->procs_y.size(), // n, m
+                                     Mx, My,
+                                     (PetscInt)procs_x.size(),
+                                     (PetscInt)procs_y.size(),
                                      da_dof, stencil_width,
-                                     &m_impl->procs_x[0], &m_impl->procs_y[0], // ly, lx
+                                     &procs_x[0], &procs_y[0], // lx, ly
                                      &result);
   PISM_CHK(ierr,"DMDACreate2d");
 
@@ -1026,7 +1040,7 @@ grid_info::grid_info(const PIO &file, const std::string &variable,
                  name_found, found_by_standard_name);
 
     if (not variable_exists) {
-      throw RuntimeError::formatted("variable \"%s\" is missing", variable.c_str());
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "variable \"%s\" is missing", variable.c_str());
     }
 
     std::vector<std::string> dims = file.inq_vardims(name_found);
@@ -1093,7 +1107,7 @@ grid_info::grid_info(const PIO &file, const std::string &variable,
         }
       default:
         {
-          throw RuntimeError::formatted("can't figure out which direction dimension '%s' corresponds to.",
+          throw RuntimeError::formatted(PISM_ERROR_LOCATION, "can't figure out which direction dimension '%s' corresponds to.",
                                         dimname.c_str());
         }
       } // switch
@@ -1184,10 +1198,8 @@ GridParameters::GridParameters(Context::ConstPtr ctx,
                                const std::string &filename,
                                const std::string &variable_name,
                                Periodicity p) {
-  PIO nc(ctx->com(), "netcdf3");
-  nc.open(filename, PISM_READONLY);
+  PIO nc(ctx->com(), "netcdf3", filename, PISM_READONLY);
   init_from_file(ctx, nc, variable_name, p);
-  nc.close();
 }
 
 
@@ -1212,7 +1224,7 @@ void GridParameters::horizontal_extent_from_options() {
 
     if (x_range.is_set() and y_range.is_set()) {
       if (x_range->size() != 2 or y_range->size() != 2) {
-        throw RuntimeError("-x_range and/or -y_range argument is invalid.");
+        throw RuntimeError(PISM_ERROR_LOCATION, "-x_range and/or -y_range argument is invalid.");
       }
       x0 = (x_range[0] + x_range[1]) / 2.0;
       y0 = (y_range[0] + y_range[1]) / 2.0;
@@ -1234,31 +1246,31 @@ void GridParameters::vertical_grid_from_options(Config::ConstPtr config) {
 
 void GridParameters::validate() const {
   if (Mx < 3) {
-    throw RuntimeError::formatted("Mx = %d is invalid (has to be 3 or greater)", Mx);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Mx = %d is invalid (has to be 3 or greater)", Mx);
   }
 
   if (My < 3) {
-    throw RuntimeError::formatted("My = %d is invalid (has to be 3 or greater)", My);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "My = %d is invalid (has to be 3 or greater)", My);
   }
 
   if (Lx <= 0.0) {
-    throw RuntimeError::formatted("Lx = %f is invalid (negative)", Lx);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Lx = %f is invalid (negative)", Lx);
   }
 
   if (Ly <= 0.0) {
-    throw RuntimeError::formatted("Ly = %f is invalid (negative)", Ly);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "Ly = %f is invalid (negative)", Ly);
   }
 
   if (not is_increasing(z)) {
-    throw RuntimeError("z levels are not increasing");
+    throw RuntimeError(PISM_ERROR_LOCATION, "z levels are not increasing");
   }
 
   if (z[0] > 1e-6) {
-    throw RuntimeError::formatted("first z level is not zero: %f", z[0]);
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "first z level is not zero: %f", z[0]);
   }
 
   if (z.back() < 0.0) {
-    throw RuntimeError::formatted("last z level is negative: %f", z.back());
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "last z level is negative: %f", z.back());
   }
 
   unsigned int sum = 0;
@@ -1267,7 +1279,7 @@ void GridParameters::validate() const {
   }
 
   if (sum != Mx) {
-    throw RuntimeError("procs_x don't sum up to Mx");
+    throw RuntimeError(PISM_ERROR_LOCATION, "procs_x don't sum up to Mx");
   }
 
   sum = 0;
@@ -1276,7 +1288,7 @@ void GridParameters::validate() const {
   }
 
   if (sum != My) {
-    throw RuntimeError("procs_y don't sum up to My");
+    throw RuntimeError(PISM_ERROR_LOCATION, "procs_y don't sum up to My");
   }
 }
 
@@ -1322,8 +1334,8 @@ IceGrid::Ptr IceGrid::FromOptions(Context::ConstPtr ctx) {
     names.push_back("topg");
     bool grid_info_found = false;
 
-    PIO nc(ctx->com(), "netcdf3");
-    nc.open(input_file, PISM_READONLY); // will be closed automatically
+    PIO nc(ctx->com(), "netcdf3", input_file, PISM_READONLY);
+
     for (unsigned int i = 0; i < names.size(); ++i) {
 
       grid_info_found = nc.inq_var(names[i]);
@@ -1342,7 +1354,7 @@ IceGrid::Ptr IceGrid::FromOptions(Context::ConstPtr ctx) {
     }
 
     if (not grid_info_found) {
-      throw RuntimeError::formatted("no geometry information found in '%s'",
+      throw RuntimeError::formatted(PISM_ERROR_LOCATION, "no geometry information found in '%s'",
                                     input_file->c_str());
     }
 
@@ -1369,8 +1381,19 @@ IceGrid::Ptr IceGrid::FromOptions(Context::ConstPtr ctx) {
   } else {
     // This covers the two remaining cases "-i is not set, -bootstrap is set" and "-i is not set,
     // -bootstrap is not set either".
-    throw RuntimeError("Please set the input file using the \"-i\" command-line option.");
+    throw RuntimeError(PISM_ERROR_LOCATION, "Please set the input file using the \"-i\" command-line option.");
   }
 }
+
+const MappingInfo& IceGrid::get_mapping_info() const {
+  return m_impl->mapping_info;
+}
+
+void IceGrid::set_mapping_info(const MappingInfo &info) {
+  m_impl->mapping_info = info;
+  // FIXME: re-compute cell areas and lat/lon
+}
+
+
 
 } // end of namespace pism

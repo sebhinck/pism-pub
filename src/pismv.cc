@@ -121,7 +121,7 @@ GridParameters pismv_grid_defaults(Config::Ptr config,
     P.periodicity = Y_PERIODIC;
     break;
   default:
-    throw RuntimeError("desired test not implemented\n");
+    throw RuntimeError(PISM_ERROR_LOCATION, "desired test not implemented\n");
   }
 
   P.z = IceGrid::compute_vertical_levels(Lz, Mz, spacing,
@@ -162,16 +162,8 @@ int main(int argc, char *argv[]) {
       
   /* This explicit scoping forces destructors to be called before PetscFinalize() */
   try {
-    verbosityLevelFromOptions();
     Context::Ptr ctx = pismv_context(com, "pismv");
     Logger::Ptr log = ctx->log();
-
-    log->message(2, "PISMV %s (verification mode)\n",
-                 PISM_Revision);
-
-    if (options::Bool("-version", "stop after printing print PISM version")) {
-      return 0;
-    }
 
     std::string usage =
       "  pismv -test x [-no_report] [-eo] [OTHER PISM & PETSc OPTIONS]\n"
@@ -181,10 +173,9 @@ int main(int argc, char *argv[]) {
       "  -eo         do not do numerical run; exact solution only\n"
       "(see User's Manual for tests I and J).\n";
 
-    std::vector<std::string> required;
-    required.push_back("-test");
+    std::vector<std::string> required(1, "-test");
 
-    bool done = show_usage_check_req_opts(*log, "pismv", required, usage);
+    bool done = show_usage_check_req_opts(*log, "PISMV (verification mode)", required, usage);
     if (done) {
       return 0;
     }

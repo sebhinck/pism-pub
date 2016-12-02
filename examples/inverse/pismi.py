@@ -48,8 +48,7 @@ class SSAForwardRun(PISM.invert.ssa.SSAForwardRunFromInputFile):
             grid = self.grid
             vecs = self.modeldata.vecs
 
-            pio = PISM.PIO(grid.com, "netcdf3")
-            pio.open(filename, PISM.PISM_READWRITE)  # append mode!
+            pio = PISM.PIO(grid.com, "netcdf3", filename, PISM.PISM_READWRITE) # append mode!
 
             self.modeldata.vecs.write(filename)
             pio.close()
@@ -264,8 +263,8 @@ def run():
     WIDE_STENCIL = int(config.get_double("grid.max_stencil_width"))
 
     usage = \
-        """  pismi.py [-i IN.nc [-o OUT.nc]]/[-a INOUT.nc] [-inv_data inv_data.nc] [-inv_forward model] 
-                [-inv_design design_var] [-inv_method meth] 
+        """  pismi.py [-i IN.nc [-o OUT.nc]]/[-a INOUT.nc] [-inv_data inv_data.nc] [-inv_forward model]
+                [-inv_design design_var] [-inv_method meth]
     where:
     -i            IN.nc       is input file in NetCDF format: contains PISM-written model state
     -o            OUT.nc      is output file in NetCDF format to be overwritten
@@ -284,7 +283,6 @@ def run():
    """
 
     append_mode = False
-    PISM.setVerbosityLevel(1)
 
     input_filename = PISM.optionsString("-i", "input file")
     append_filename = PISM.optionsString("-a", "append file", default=None)
@@ -308,7 +306,6 @@ def run():
         append_mode = True
 
     inv_data_filename = PISM.optionsString("-inv_data", "inverse data file", default=input_filename)
-    verbosity = PISM.optionsInt("-verbose", "verbosity level", default=2)
 
     do_plotting = PISM.optionsFlag("-inv_plot", "perform visualization during the computation", default=False)
     do_final_plot = PISM.optionsFlag("-inv_final_plot", "perform visualization at the end of the computation", default=False)
@@ -336,7 +333,6 @@ def run():
 
     saving_inv_data = (inv_data_filename != output_filename)
 
-    PISM.setVerbosityLevel(verbosity)
     forward_run = SSAForwardRun(input_filename, inv_data_filename, design_var)
     forward_run.setup()
     design_param = forward_run.designVariableParameterization()
@@ -462,16 +458,7 @@ def run():
 
     # Prep the output file from the grid so that we can save zeta to it during the runs.
     if not append_mode:
-        pio = PISM.PIO(grid.com, "netcdf3")
-        pio.open(output_filename, PISM.PISM_READWRITE_MOVE)
-        PISM.define_time(pio,
-                         grid.ctx().config().get_string("time.dimension_name"),
-                         grid.ctx().config().get_string("time.calendar"),
-                         grid.ctx().time().units_string(),
-                         grid.ctx().unit_system())
-        PISM.append_time(pio,
-                         grid.ctx().config().get_string("time.dimension_name"),
-                         grid.ctx().time().current())
+        pio = PISM.util.prepare_output(output_filename)
         pio.close()
     zeta.write(output_filename)
 

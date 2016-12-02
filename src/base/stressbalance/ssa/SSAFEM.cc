@@ -36,8 +36,8 @@ namespace stressbalance {
  *
  *
  */
-SSAFEM::SSAFEM(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e)
-  : SSA(g, e),
+SSAFEM::SSAFEM(IceGrid::ConstPtr g)
+  : SSA(g),
     m_gc(*m_config),
     m_element_index(*g),
     m_element(*g),
@@ -122,8 +122,8 @@ SSAFEM::SSAFEM(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e)
                                 "", ""); // no units or standard name
 }
 
-SSA* SSAFEMFactory(IceGrid::ConstPtr g, EnthalpyConverter::Ptr ec) {
-  return new SSAFEM(g, ec);
+SSA* SSAFEMFactory(IceGrid::ConstPtr g) {
+  return new SSAFEM(g);
 }
 
 SSAFEM::~SSAFEM() {
@@ -182,9 +182,9 @@ void SSAFEM::solve() {
 
   TerminationReason::Ptr reason = solve_with_reason();
   if (reason->failed()) {
-    throw RuntimeError::formatted("SSAFEM solve failed to converge (SNES reason %s)",
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "SSAFEM solve failed to converge (SNES reason %s)",
                                   reason->description().c_str());
-  } else if (getVerbosityLevel() > 2) {
+  } else if (m_log->get_threshold() > 2) {
     m_stdout_ssa += "SSAFEM converged (SNES reason " + reason->description() + ")";
   }
 }
@@ -224,7 +224,7 @@ TerminationReason::Ptr SSAFEM::solve_nocache() {
   }
 
   m_stdout_ssa.clear();
-  if (getVerbosityLevel() >= 2) {
+  if (m_log->get_threshold() >= 2) {
     m_stdout_ssa = "  SSA: ";
   }
 

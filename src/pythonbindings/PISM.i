@@ -46,7 +46,10 @@
 #include "base/util/error_handling.hh"
 #include "base/util/PISMDiagnostic.hh"
 #include "base/util/PISMConfig.hh"
+
+#ifdef PISM_USE_JANSSON
 #include "base/util/ConfigJSON.hh"
+#endif
 
 #include "base/util/MaxTimestep.hh"
 #include "base/util/Context.hh"
@@ -54,6 +57,7 @@
 #include "base/util/Profiling.hh"
 
 #include "base/util/projection.hh"
+#include "base/energy/bootstrapping.hh"
 %}
 
 // Include petsc4py.i so that we get support for automatic handling of PetscErrorCode return values
@@ -66,6 +70,7 @@
 // Conversions between python lists and certain STL vectors
 %include std_vector.i
 %include std_set.i
+%include std_map.i
 
 %include "base/util/pism_memory.hh"
 #ifdef PISM_USE_TR1
@@ -79,6 +84,8 @@
 %template(DoubleVector) std::vector<double>;
 %template(StringVector) std::vector<std::string>;
 %template(StringSet) std::set<std::string>;
+%template(DoubleVectorMap) std::map<std::string, std::vector<double> >;
+%template(StringMap) std::map<std::string, std::string>;
 
 // Why did I include this?
 %include "cstring.i"
@@ -150,11 +157,6 @@
 %apply double * OUTPUT {double * result};
 %apply bool & OUTPUT {bool & is_set, bool & result, bool & flag, bool & success};
 
-// The varargs to verbPrintf aren't making it through from python.  But that's ok: we'd like
-// to extend the printf features of verbPrintf to include python's formatting for objects.
-// So we rename verbPrintf here and call it (without any varargs) from a python verbPrintf.
-%rename(_verbPrintf) verbPrintf;
-
 // The SWIG built-in typecheck for a const char [] (used, e.g., with overloaded methods) checks that
 // the string is zero length. So we have this bug fix from SWIG developer William Fulton here.
 %typemap(typecheck,noblock=1,precedence=SWIG_TYPECHECK_STRING, fragment="SWIG_AsCharPtrAndSize") const char[] {
@@ -196,10 +198,13 @@
 %shared_ptr(pism::Config);
 %shared_ptr(pism::NetCDFConfig);
 %shared_ptr(pism::DefaultConfig);
-%shared_ptr(pism::ConfigJSON);
 %include "base/util/PISMConfigInterface.hh"
 %include "base/util/PISMConfig.hh"
+
+#ifdef PISM_USE_JANSSON
+%shared_ptr(pism::ConfigJSON);
 %include "base/util/ConfigJSON.hh"
+#endif
 
 /* EnthalpyConverter uses Config, so we need to wrap Config first (see above). */
 %shared_ptr(pism::EnthalpyConverter);
@@ -215,16 +220,16 @@
 
 %include pism_IceGrid.i
 
-/* Timeseries uses IceGrid, so IceGrid has to be wrapped first. */
-%include pism_Timeseries.i
-
 /* PIO uses IceGrid, so IceGrid has to be wrapped first. */
 %include pism_PIO.i
 
 /* make sure PIO.i is included before VariableMetadata.hh */
 %include pism_VariableMetadata.i
 
-/* IceModelVec uses IceGrid and VariableMetadata, so they have to be wrapped first. */
+/* Timeseries uses IceGrid and VariableMetadata so they have to be wrapped first. */
+%include pism_Timeseries.i
+
+/* IceModelVec uses IceGrid and VariableMetadata so they have to be wrapped first. */
 %include pism_IceModelVec.i
 
 /* pism::Vars uses IceModelVec, so IceModelVec has to be wrapped first. */
@@ -238,6 +243,8 @@
 %include pism_FlowLaw.i
 
 %include pism_ColumnSystem.i
+
+%include EnergyModel.i
 
 /* SSAForwardRunFromInputFile sets up a yield stress model, which
  * requires a hydrology model.
@@ -255,6 +262,9 @@
 %include pism_SIA.i
 
 %include pism_BedDef.i
+
+%include AgeModel.i
+
 /* The regional model implements some classes derived from SSAFD and
  * SIAFD, so this %include has to appear after %including the rest of
  * PISM's stress balance headers.
@@ -285,3 +295,7 @@
 %include pism_inverse.i
 
 %include pism_ocean.i
+
+%include pism_verification.i
+
+%include "base/energy/bootstrapping.hh"

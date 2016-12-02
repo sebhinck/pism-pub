@@ -70,9 +70,6 @@ macro(pism_latex_document name src figs run_bibtex)
 endmacro()
 
 if (PDFLATEX_COMPILER)
-  # Installation manual:
-  add_subdirectory(installation)
-
   # User's Manual:
   add_subdirectory(manual)
 
@@ -89,7 +86,6 @@ if (PDFLATEX_COMPILER)
     install (FILES
       "${CMAKE_CURRENT_BINARY_DIR}/manual/pism_manual.pdf"
       "${CMAKE_CURRENT_BINARY_DIR}/forcing/pism_forcing.pdf"
-      "${CMAKE_CURRENT_BINARY_DIR}/installation/pism_installation.pdf"
       DESTINATION ${Pism_DOC_DIR})
 
   endif ()                      # if Pism_DOC_DIR

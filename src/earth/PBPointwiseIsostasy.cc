@@ -37,18 +37,18 @@ PBPointwiseIsostasy::~PBPointwiseIsostasy() {
 
 void PBPointwiseIsostasy::init_impl() {
 
-  BedDef::init_impl();
-
   m_log->message(2,
              "* Initializing the pointwise isostasy bed deformation model...\n");
+
+  BedDef::init_impl();
 
   const IceModelVec2S *ice_thickness = m_grid->variables().get_2d_scalar("land_ice_thickness");
   m_thk_last.copy_from(*ice_thickness);
 }
 
-MaxTimestep PBPointwiseIsostasy::max_timestep_impl(double t) {
+MaxTimestep PBPointwiseIsostasy::max_timestep_impl(double t) const {
   (void) t;
-  return MaxTimestep();
+  return MaxTimestep("bed_def iso");
 }
 
 //! Updates the pointwise isostasy model.

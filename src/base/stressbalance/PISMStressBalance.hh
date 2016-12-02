@@ -21,6 +21,7 @@
 
 #include "base/util/PISMComponent.hh"     // derives from Component
 #include "base/util/iceModelVec.hh"
+#include "base/timestepping.hh"
 
 namespace pism {
 
@@ -67,54 +68,50 @@ public:
               const IceModelVec2S &melange_back_pressure);
 
   //! \brief Get the thickness-advective (SSA) 2D velocity.
-  const IceModelVec2V& advective_velocity();
+  const IceModelVec2V& advective_velocity() const;
 
   //! \brief Get the diffusive (SIA) vertically-averaged flux on the staggered grid.
-  const IceModelVec2Stag& diffusive_flux();
+  const IceModelVec2Stag& diffusive_flux() const;
 
   //! \brief Get the max diffusivity (for the adaptive time-stepping).
-  double max_diffusivity();
+  double max_diffusivity() const;
+
+  CFLData max_timestep_cfl_2d() const;
+  CFLData max_timestep_cfl_3d() const;
 
   // for the energy/age time step:
 
-  //! \brief Get the 3D velocity (for the energy/age time-stepping).
-  const IceModelVec3& velocity_u();
-  const IceModelVec3& velocity_v();
-  const IceModelVec3& velocity_w();
+  //! \brief Get components of the the 3D velocity field.
+  const IceModelVec3& velocity_u() const;
+  const IceModelVec3& velocity_v() const;
+  const IceModelVec3& velocity_w() const;
 
-  //! \brief Get the basal frictional heating (for the energy time-stepping).
-  const IceModelVec2S& basal_frictional_heating();
+  //! \brief Get the basal frictional heating.
+  const IceModelVec2S& basal_frictional_heating() const;
 
-  const IceModelVec3& volumetric_strain_heating();
+  const IceModelVec3& volumetric_strain_heating() const;
 
   // for the calving, etc.:
-
-  //! \brief Get the largest and smallest eigenvalues of the strain rate tensor.
-  void compute_2D_principal_strain_rates(const IceModelVec2V &velocity,
-                                         const IceModelVec2CellType &mask,
-                                         IceModelVec2 &result);
 
   //! \brief Get the components of the 2D deviatoric stress tensor.
   void compute_2D_stresses(const IceModelVec2V &velocity,
                            const IceModelVec2CellType &mask,
-                           IceModelVec2 &result);
+                           IceModelVec2 &result) const;
 
   //! \brief Produce a report string for the standard output.
-  std::string stdout_report();
+  std::string stdout_report() const;
 
-  //! \brief Returns a pointer to a stress balance solver implementation.
-  ShallowStressBalance* get_stressbalance();
+  //! \brief Returns a pointer to a shallow stress balance solver implementation.
+  const ShallowStressBalance* shallow() const;
 
   //! \brief Returns a pointer to a stress balance modifier implementation.
-  SSB_Modifier* get_ssb_modifier();
+  const SSB_Modifier* modifier() const;
 protected:
   virtual void get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict);
+                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const;
 
-  virtual void write_variables_impl(const std::set<std::string> &vars, const PIO &nc);
-  virtual void add_vars_to_output_impl(const std::string &keyword, std::set<std::string> &result);
-  virtual void define_variables_impl(const std::set<std::string> &vars, const PIO &nc,
-                                     IO_Type nctype);
+  virtual void define_model_state_impl(const PIO &output) const;
+  virtual void write_model_state_impl(const PIO &output) const;
 
   virtual void compute_vertical_velocity(const IceModelVec3 &u,
                                          const IceModelVec3 &v,
@@ -122,12 +119,21 @@ protected:
                                          IceModelVec3 &result);
   virtual void compute_volumetric_strain_heating();
 
+  CFLData compute_cfl_2d();
+  CFLData compute_cfl_3d();
+
+  CFLData m_cfl_2d, m_cfl_3d;
+
   IceModelVec3 m_w, m_strain_heating;
   const IceModelVec2S *m_basal_melt_rate;
 
   ShallowStressBalance *m_shallow_stress_balance;
   SSB_Modifier *m_modifier;
 };
+
+void compute_2D_principal_strain_rates(const IceModelVec2V &velocity,
+                                       const IceModelVec2CellType &mask,
+                                       IceModelVec2 &result);
 
 } // end of namespace stressbalance
 } // end of namespace pism

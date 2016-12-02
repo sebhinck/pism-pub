@@ -32,18 +32,18 @@ namespace stressbalance {
 //! PISM's SSA solver: the finite difference implementation.
 class SSAFD : public SSA
 {
-  friend class SSAFD_nuH;
 public:
-  SSAFD(IceGrid::ConstPtr g, EnthalpyConverter::Ptr e);
+  SSAFD(IceGrid::ConstPtr g);
   virtual ~SSAFD();
 
   virtual void update(bool fast, double sea_level, const IceModelVec2S &melange_back_pressure);
 
+  const IceModelVec2Stag & integrated_viscosity() const;
 protected:
   virtual void init_impl();
 
   virtual void get_diagnostics_impl(std::map<std::string, Diagnostic::Ptr> &dict,
-                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict);
+                                    std::map<std::string, TSDiagnostic::Ptr> &ts_dict) const;
 
   virtual void pc_setup_bjacobi();
 
@@ -76,13 +76,6 @@ protected:
 
   virtual void write_system_petsc(const std::string &namepart);
 
-  virtual void write_system_matlab(const std::string &namepart);
-private:
-  PetscErrorCode write_system_matlab_c(const petsc::Viewer &viewer,
-                                       const std::string &file_name,
-                                       const std::string &cmdstr,
-                                       double year);
-protected:
   virtual void update_nuH_viewers();
 
   virtual void set_diagonal_matrix_entry(Mat A, int i, int j,
@@ -93,24 +86,22 @@ protected:
   virtual void fracture_induced_softening();
 
   // objects used internally
-  IceModelVec2Stag hardness, nuH, nuH_old;
+  IceModelVec2Stag m_hardness, m_nuH, m_nuH_old;
   IceModelVec2 m_work;
   petsc::KSP m_KSP;
   petsc::Mat m_A;
   IceModelVec2V m_b;            // right hand side
   double m_scaling;
 
-  const IceModelVec2S *fracture_density, *m_melange_back_pressure;
+  const IceModelVec2S *m_fracture_density, *m_melange_back_pressure;
   IceModelVec2V m_velocity_old;
 
   unsigned int m_default_pc_failure_count,
     m_default_pc_failure_max_count;
   
-  bool view_nuh;
-  petsc::Viewer::Ptr nuh_viewer;
-  int nuh_viewer_size;
-
-  bool dump_system_matlab;
+  bool m_view_nuh;
+  petsc::Viewer::Ptr m_nuh_viewer;
+  int m_nuh_viewer_size;
 
   class KSPFailure : public RuntimeError {
   public:
@@ -124,7 +115,7 @@ protected:
 };
 
 //! Constructs a new SSAFD
-SSA * SSAFDFactory(IceGrid::ConstPtr , EnthalpyConverter::Ptr);
+SSA * SSAFDFactory(IceGrid::ConstPtr grid);
 
 } // end of namespace stressbalance
 } // end of namespace pism

@@ -19,6 +19,8 @@
 #ifndef __PISMDiagnostic_hh
 #define __PISMDiagnostic_hh
 
+#include <gsl/gsl_math.h>       // GSL_NAN
+
 #include "VariableMetadata.hh"
 #include "Timeseries.hh"        // inline code
 #include "PISMTime.hh"
@@ -91,16 +93,72 @@ protected:
   IO_Type m_output_datatype;
   //! metadata corresponding to NetCDF variables
   std::vector<SpatialVariableMetadata> m_vars;
+  //! fill value (used often enough to justify storing it)
+  double m_fill_value;
 };
 
 //! A template derived from Diagnostic, adding a "Model".
 template <class Model>
 class Diag : public Diagnostic {
 public:
-  Diag(Model *m)
+  Diag(const Model *m)
     : Diagnostic(m->grid()), model(m) {}
 protected:
-  Model *model;
+  const Model *model;
+};
+
+/*! @brief Helper class for computing time averages of 2D quantities. */
+template <class M>
+class Diag_average : public Diag<M>
+{
+public:
+  Diag_average(const M *m)
+    : Diag<M>(m) {
+    m_last_value.create(Diagnostic::m_grid, "last_value_of_cumulative_quantity", WITHOUT_GHOSTS);
+    m_last_report_time = GSL_NAN;
+  }
+protected:
+  IceModelVec::Ptr compute_impl() {
+
+    IceModelVec2S::Ptr result(new IceModelVec2S);
+    IceModelVec2S &output = *result;
+    result->create(Diagnostic::m_grid, "rate_average", WITHOUT_GHOSTS);
+    result->metadata(0) = Diagnostic::m_vars[0];
+
+    const IceModelVec2S &value = cumulative_value();
+    const double current_time = Diagnostic::m_grid->ctx()->time()->current();
+
+    if (gsl_isnan(m_last_report_time)) {
+      const double fill_value = units::convert(Diagnostic::m_sys,
+                                               Diagnostic::m_fill_value,
+                                               "year-1", "second-1");
+      result->set(fill_value);
+    } else {
+      IceModelVec::AccessList list;
+      list.add(*result);
+      list.add(m_last_value);
+      list.add(value);
+
+      const double dt = current_time - m_last_report_time;
+
+      for (Points p(*Diagnostic::m_grid); p; p.next()) {
+        const int i = p.i(), j = p.j();
+
+        output(i, j) = (value(i, j) - m_last_value(i, j)) / dt;
+      }
+    }
+
+    // Save the cumulative accumulation and the corresponding time:
+    m_last_value.copy_from(value);
+    m_last_report_time = current_time;
+
+    return result;
+  }
+
+  virtual const IceModelVec2S &cumulative_value() const = 0;
+
+  IceModelVec2S m_last_value;
+  double m_last_report_time;
 };
 
 //! @brief PISM's scalar time-series diagnostics.
@@ -109,7 +167,9 @@ public:
   typedef PISM_SHARED_PTR(TSDiagnostic) Ptr;
 
   TSDiagnostic(IceGrid::ConstPtr g)
-    : m_grid(g), m_sys(g->ctx()->unit_system()), m_ts(NULL) {
+    : m_grid(g),
+      m_config(g->ctx()->config()),
+      m_sys(g->ctx()->unit_system()), m_ts(NULL) {
   }
 
   virtual ~TSDiagnostic() {
@@ -143,6 +203,8 @@ public:
 protected:
   //! the grid
   IceGrid::ConstPtr m_grid;
+  //! Configuration flags and parameters
+  const Config::ConstPtr m_config;
   //! the unit system
   const units::System::Ptr m_sys;
   DiagnosticTimeseries *m_ts;
@@ -151,13 +213,13 @@ protected:
 template <class Model>
 class TSDiag : public TSDiagnostic {
 public:
-  TSDiag(Model *m)
+  TSDiag(const Model *m)
     : TSDiagnostic(m->grid()), model(m) {
     m_time_units = m_grid->ctx()->time()->CF_units_string();
     m_time_dimension_name = m_grid->ctx()->config()->get_string("time.dimension_name");
   }
 protected:
-  Model *model;
+  const Model *model;
   std::string m_time_units, m_time_dimension_name;
 };
 

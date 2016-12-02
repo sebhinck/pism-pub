@@ -1,4 +1,4 @@
-// Copyright (C) 2009--2015 Constantine Khroulev
+// Copyright (C) 2009--2016 Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -97,6 +97,7 @@ public:
   unsigned int get_n_spatial_dimensions() const;
 
   bool has_attribute(const std::string &name) const;
+  bool has_attributes() const;
   bool get_time_independent() const;
 
   typedef std::map<std::string,std::string> StringAttrs;
@@ -124,6 +125,8 @@ private:
   std::string m_short_name;
   bool m_time_independent;
 };
+
+bool set_contains(const std::set<std::string> &S, const VariableMetadata &field);
 
 //! Spatial NetCDF variable (corresponding to a 2D or 3D scalar field).
 class SpatialVariableMetadata : public VariableMetadata {

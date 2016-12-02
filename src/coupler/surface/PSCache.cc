@@ -80,31 +80,30 @@ void Cache::init_impl() {
                                      update_interval);
 
   if (update_interval <= 0) {
-    throw RuntimeError::formatted("-surface_cache_update_interval has to be strictly positive.");
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION, "-surface_cache_update_interval has to be strictly positive.");
   }
 
   m_update_interval_years = update_interval;
   m_next_update_time = m_grid->ctx()->time()->current();
 }
 
-void Cache::update_impl(double my_t, double my_dt) {
-  // ignore my_dt and always use 1 year long time-steps when updating
+void Cache::update_impl(double t, double dt) {
+  // ignore dt and always use 1 year long time-steps when updating
   // an input model
-  (void) my_dt;
+  (void) dt;
 
-  if (my_t >= m_next_update_time ||
-      fabs(my_t - m_next_update_time) < 1.0) {
+  if (t >= m_next_update_time or fabs(t - m_next_update_time) < 1.0) {
 
     double
-      one_year_from_now = m_grid->ctx()->time()->increment_date(my_t, 1.0),
-      update_dt         = one_year_from_now - my_t;
+      one_year_from_now = m_grid->ctx()->time()->increment_date(t, 1.0),
+      update_dt         = one_year_from_now - t;
 
     assert(update_dt > 0.0);
 
-    m_input_model->update(my_t, update_dt);
+    m_input_model->update(t, update_dt);
 
     m_next_update_time = m_grid->ctx()->time()->increment_date(m_next_update_time,
-                                                   m_update_interval_years);
+                                                               m_update_interval_years);
 
     m_input_model->ice_surface_mass_flux(m_mass_flux);
     m_input_model->ice_surface_temperature(m_temperature);
@@ -114,14 +113,14 @@ void Cache::update_impl(double my_t, double my_dt) {
   }
 }
 
-MaxTimestep Cache::max_timestep_impl(double t) {
+MaxTimestep Cache::max_timestep_impl(double t) const {
   double dt = m_next_update_time - t;
 
   // if we got very close to the next update time, set time step
   // length to the interval between updates
   if (dt < 1.0) {
     double update_time_after_next = m_grid->ctx()->time()->increment_date(m_next_update_time,
-                                                                m_update_interval_years);
+                                                                          m_update_interval_years);
 
     dt = update_time_after_next - m_next_update_time;
     assert(dt > 0.0);
@@ -129,95 +128,34 @@ MaxTimestep Cache::max_timestep_impl(double t) {
 
   assert(m_input_model != NULL);
 
+  MaxTimestep cache_dt(dt, "surface cache");
+
   MaxTimestep input_max_timestep = m_input_model->max_timestep(t);
-  if (input_max_timestep.is_finite()) {
-    return std::min(input_max_timestep, MaxTimestep(dt));
+  if (input_max_timestep.finite()) {
+    return std::min(input_max_timestep, cache_dt);
   } else {
-    return MaxTimestep(dt);
+    return cache_dt;
   }
 }
 
-void Cache::ice_surface_mass_flux_impl(IceModelVec2S &result) {
+void Cache::ice_surface_mass_flux_impl(IceModelVec2S &result) const {
   result.copy_from(m_mass_flux);
 }
 
-void Cache::ice_surface_temperature_impl(IceModelVec2S &result) {
+void Cache::ice_surface_temperature_impl(IceModelVec2S &result) const {
   result.copy_from(m_temperature);
 }
 
-void Cache::ice_surface_liquid_water_fraction_impl(IceModelVec2S &result) {
+void Cache::ice_surface_liquid_water_fraction_impl(IceModelVec2S &result) const {
   result.copy_from(m_liquid_water_fraction);
 }
 
-void Cache::mass_held_in_surface_layer_impl(IceModelVec2S &result) {
+void Cache::mass_held_in_surface_layer_impl(IceModelVec2S &result) const {
   result.copy_from(m_mass_held_in_surface_layer);
 }
 
-void Cache::surface_layer_thickness_impl(IceModelVec2S &result) {
+void Cache::surface_layer_thickness_impl(IceModelVec2S &result) const {
   result.copy_from(m_surface_layer_thickness);
-}
-
-
-void Cache::define_variables_impl(const std::set<std::string> &vars_input, const PIO &nc, IO_Type nctype) {
-  std::set<std::string> vars = vars_input;
-
-  if (set_contains(vars, m_mass_flux.metadata().get_string("short_name"))) {
-    m_mass_flux.define(nc, nctype);
-    vars.erase(m_mass_flux.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_temperature.metadata().get_string("short_name"))) {
-    m_temperature.define(nc, nctype);
-    vars.erase(m_temperature.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_liquid_water_fraction.metadata().get_string("short_name"))) {
-    m_liquid_water_fraction.define(nc, nctype);
-    vars.erase(m_liquid_water_fraction.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_mass_held_in_surface_layer.metadata().get_string("short_name"))) {
-    m_mass_held_in_surface_layer.define(nc, nctype);
-    vars.erase(m_mass_held_in_surface_layer.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_surface_layer_thickness.metadata().get_string("short_name"))) {
-    m_surface_layer_thickness.define(nc, nctype);
-    vars.erase(m_surface_layer_thickness.metadata().get_string("short_name"));
-  }
-
-  m_input_model->define_variables(vars, nc, nctype);
-}
-
-void Cache::write_variables_impl(const std::set<std::string> &vars_input, const PIO &nc) {
-  std::set<std::string> vars = vars_input;
-
-  if (set_contains(vars, m_mass_flux.metadata().get_string("short_name"))) {
-    m_mass_flux.write(nc);
-    vars.erase(m_mass_flux.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_temperature.metadata().get_string("short_name"))) {
-    m_temperature.write(nc);
-    vars.erase(m_temperature.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_liquid_water_fraction.metadata().get_string("short_name"))) {
-    m_liquid_water_fraction.write(nc);
-    vars.erase(m_liquid_water_fraction.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_mass_held_in_surface_layer.metadata().get_string("short_name"))) {
-    m_mass_held_in_surface_layer.write(nc);
-    vars.erase(m_mass_held_in_surface_layer.metadata().get_string("short_name"));
-  }
-
-  if (set_contains(vars, m_surface_layer_thickness.metadata().get_string("short_name"))) {
-    m_surface_layer_thickness.write(nc);
-    vars.erase(m_surface_layer_thickness.metadata().get_string("short_name"));
-  }
-
-  m_input_model->write_variables(vars, nc);
 }
 
 } // end of namespace surface
