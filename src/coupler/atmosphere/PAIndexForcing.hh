@@ -23,6 +23,7 @@
 #include "base/util/iceModelVec2T.hh"
 #include "base/util/Timeseries.hh"
 #include "coupler/PISMAtmosphere.hh"
+#include "base/util/PISMTime.hh"
 
 namespace pism {
 namespace atmosphere {
@@ -63,8 +64,8 @@ protected:
   IceModelVec2S m_precipitation, 
 		m_air_temp, 
 		m_h_0, 
-		m_h_1, 
-		*m_surface;
+		m_h_1;
+  const IceModelVec2S *m_surface;
   IceModelVec2T m_T_0, 
 		m_T_1, 
 		m_P_0, 

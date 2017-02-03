@@ -66,23 +66,23 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
   
   process_options();
   
-  PetscErrorCode ierr;
+//PetscErrorCode ierr;
   
   m_T_0.set_n_records(12);
-  ierr = m_T_0.create(g, "airtemp_0", false); CHKERRQ(ierr);
-  ierr = m_T_0.set_attrs("climate_forcing", "air temperature at t0", "K", ""); CHKERRQ(ierr);
+  m_T_0.create(g, "airtemp_0");
+  m_T_0.set_attrs("climate_forcing", "air temperature at t0", "K", "");
 
   m_T_1.set_n_records(12);
-  ierr = m_T_1.create(g, "airtemp_1", false); CHKERRQ(ierr);
-  ierr = m_T_1.set_attrs("climate_forcing", "air temperature at t1", "K", ""); CHKERRQ(ierr); 
+  m_T_1.create(g, "airtemp_1");
+  m_T_1.set_attrs("climate_forcing", "air temperature at t1", "K", "");
   
   m_P_0.set_n_records(12);
-  ierr = m_P_0.create(g, "precip_0", false); CHKERRQ(ierr);
-  ierr = m_P_0.set_attrs("climate_forcing", "precipitation at t0", "m s-1", ""); CHKERRQ(ierr);
+  m_P_0.create(g, "precip_0");
+  m_P_0.set_attrs("climate_forcing", "precipitation at t0", "m s-1", "");
   
   m_P_1.set_n_records(12);
-  ierr = m_P_1.create(g, "precip_1", false); CHKERRQ(ierr);
-  ierr = m_P_1.set_attrs("climate_forcing", "precipitation at t1", "m s-1", ""); CHKERRQ(ierr);
+  m_P_1.create(g, "precip_1");
+  m_P_1.set_attrs("climate_forcing", "precipitation at t1", "m s-1", "");
 }
 
 void IndexForcing::process_options()
@@ -131,14 +131,14 @@ void IndexForcing::process_options()
 			  "Specifies the length of the climate index data period (in years)", 0);
   if (period.value() < 0.0) {
     throw RuntimeError::formatted("invalid %s_period %d (period length cannot be negative)",
-				  option_prefix.c_str(), period.value());
+				  index_option_prefix.c_str(), period.value());
   }
   m_period = (unsigned int)period;
 
   options::Integer ref_year(index_option_prefix + "_reference_year",
 			    "Boundary condition reference year", 0);
   if (ref_year.is_set()) {
-    m_reference_time = units::convert(Model::m_sys, ref_year, "years", "seconds");
+    m_reference_time = units::convert(m_sys, ref_year, "years", "seconds");
   } else {
     m_reference_time = 0;
   }
@@ -174,12 +174,12 @@ void IndexForcing::init_data()
   
   m_log->message(2,
 	    "  reading %s data from forcing file %s...\n",
-	    m_index->short_name.c_str(), m_index_file->c_str());
+	    m_index->short_name.c_str(), m_index_file.c_str());
 
-  PIO nc(g->com, "netcdf3");
+  PIO nc(m_grid->com, "netcdf3");
   nc.open(m_index_file, PISM_READONLY);
   {
-    m_index->read(nc, *g->ctx()->time(), *g->ctx()->log());
+    m_index->read(nc, *m_grid->ctx()->time(), *m_grid->ctx()->log());
   }
   nc.close();
   
@@ -302,7 +302,7 @@ void IndexForcing::update_impl(double my_t, double my_dt)
   IceModelVec::AccessList list;
   list.add(m_air_temp);
   list.add(m_precipitation);
-  list.add(m_surface);
+  list.add(*m_surface);
   list.add(m_T_0);
   list.add(m_T_1);
   list.add(m_P_0);
@@ -313,8 +313,8 @@ void IndexForcing::update_impl(double my_t, double my_dt)
   for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();
 
-    m_air_temp(i, j) = compute_T_ij(m_T_0(i,j), m_T_1(i,j), m_h_0(i,j), m_h_1(i,j), m_surface(i,j), index);
-    m_precipitation(i, j) = compute_P_ij(m_P_0(i,j), m_P_1(i,j), m_h_0(i,j), m_h_1(i,j), m_surface(i,j), index);
+    m_air_temp(i, j) = compute_T_ij(m_T_0(i,j), m_T_1(i,j), m_h_0(i,j), m_h_1(i,j), (*m_surface)(i,j), index);
+    m_precipitation(i, j) = compute_P_ij(m_P_0(i,j), m_P_1(i,j), m_h_0(i,j), m_h_1(i,j), (*m_surface)(i,j), index);
   }
   
 }
@@ -348,7 +348,7 @@ void IndexForcing::temp_time_series(int i, int j, std::vector< double >& result)
   m_T_1.interp(i, j, T1);
 		      
   for (unsigned int k = 0; k < m_ts_times.size(); k++) {
-    result[k] = compute_T_ij(T0[k], T1[k], m_h_0(i,j), m_h_1(i,j), m_surface(i,j), m_ts_index[k]);
+    result[k] = compute_T_ij(T0[k], T1[k], m_h_0(i,j), m_h_1(i,j), (*m_surface)(i,j), m_ts_index[k]);
   }
 }
 
@@ -361,7 +361,7 @@ void IndexForcing::precip_time_series(int i, int j, std::vector< double >& resul
   m_P_1.interp(i, j, P1);
 		      
   for (unsigned int k = 0; k < m_ts_times.size(); k++) {
-    result[k] = compute_P_ij(P0[k], P1[k], m_h_0(i,j), m_h_1(i,j), m_surface(i,j), m_ts_index[k]);
+    result[k] = compute_P_ij(P0[k], P1[k], m_h_0(i,j), m_h_1(i,j), (*m_surface)(i,j), m_ts_index[k]);
   }
 }
 
