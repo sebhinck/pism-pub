@@ -30,7 +30,7 @@ namespace atmosphere {
 class IndexForcing : public AtmosphereModel {
 public:
   IndexForcing(IceGrid::ConstPtr g);
-  ~IndexForcing(IceGrid::ConstPtr g);
+  ~IndexForcing();
   virtual void init();
   virtual void mean_precipitation(IceModelVec2S &result);
   virtual void mean_annual_temp(IceModelVec2S &result);
