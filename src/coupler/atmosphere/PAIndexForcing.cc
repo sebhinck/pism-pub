@@ -27,6 +27,7 @@
 #include "base/util/MaxTimestep.hh"
 #include "base/util/pism_options.hh"
 #include "base/util/error_handling.hh"
+#include "base/util/io/PIO.hh"
 
 namespace pism {
 namespace atmosphere {
@@ -63,71 +64,93 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
   
   process_options();
   
+  PetscErrorCode ierr;
+  
+  m_T_0.set_n_records(12);
+  ierr = m_T_0.create(g, "airtemp_0", false); CHKERRQ(ierr);
+  ierr = m_T_0.set_attrs("climate_forcing", "air temperature at t0", "K", ""); CHKERRQ(ierr);
+
+  m_T_1.set_n_records(12);
+  ierr = m_T_1.create(g, "airtemp_1", false); CHKERRQ(ierr);
+  ierr = m_T_1.set_attrs("climate_forcing", "air temperature at t1", "K", ""); CHKERRQ(ierr); 
+  
+  m_P_0.set_n_records(12);
+  ierr = m_P_0.create(g, "precip_0", false); CHKERRQ(ierr);
+  ierr = m_P_0.set_attrs("climate_forcing", "precipitation at t0", "m s-1", ""); CHKERRQ(ierr);
+  
+  m_P_1.set_n_records(12);
+  ierr = m_P_1.create(g, "precip_1", false); CHKERRQ(ierr);
+  ierr = m_P_1.set_attrs("climate_forcing", "precipitation at t1", "m s-1", ""); CHKERRQ(ierr);
 }
 
 void IndexForcing::process_options()
 {
   
-    std::string climate_option_prefix = "IndexForcing_climate";
+  std::string climate_option_prefix = "IndexForcing_climate";
+
+  options::String climate_file(climate_option_prefix + "_file",
+			"Specifies a file with boundary conditions");
+  if (climate_file.is_set()) {
+    m_climate_file = climate_file;
+    m_log->message(2,
+		"  - Reading boundary conditions from '%s'...\n",
+		m_climate_file.c_str());
+  } else {
+    // find PISM input file to read data from:
+    bool do_regrid; int start;   // will be ignored
+    find_pism_input(m_climate_file, do_regrid, start);
+
+    m_log->message(2,
+		"  - Option %s_file is not set. Trying the input file '%s'...\n",
+		climate_option_prefix.c_str(), m_climate_file.c_str());
+  }
+
+
+  std::string index_option_prefix = "IndexForcing_index";
+
+  options::String index_file(index_option_prefix + "_file",
+			"Specifies a file with boundary conditions");
+  if (index_file.is_set()) {
+    m_index_file = index_file;
+    m_log->message(2,
+		"  - Reading boundary conditions from '%s'...\n",
+		m_index_file.c_str());
+  } else {
+    // find PISM input file to read data from:
+    bool do_regrid; int start;   // will be ignored
+    find_pism_input(m_index_file, do_regrid, start);
+
+    m_log->message(2,
+		"  - Option %s_file is not set. Trying the input file '%s'...\n",
+		index_option_prefix.c_str(), m_index_file.c_str());
+  }
+
+  options::Integer period(index_option_prefix + "_period",
+			  "Specifies the length of the climate index data period (in years)", 0);
+  if (period.value() < 0.0) {
+    throw RuntimeError::formatted("invalid %s_period %d (period length cannot be negative)",
+				  option_prefix.c_str(), period.value());
+  }
+  m_period = (unsigned int)period;
+
+  options::Integer ref_year(index_option_prefix + "_reference_year",
+			    "Boundary condition reference year", 0);
+  if (ref_year.is_set()) {
+    m_reference_time = units::convert(Model::m_sys, ref_year, "years", "seconds");
+  } else {
+    m_reference_time = 0;
+  }
   
-    options::String climate_file(climate_option_prefix + "_file",
-                         "Specifies a file with boundary conditions");
-    if (climate_file.is_set()) {
-      m_climate_file = climate_file;
-      m_log->message(2,
-                 "  - Reading boundary conditions from '%s'...\n",
-                 m_climate_file.c_str());
-    } else {
-      // find PISM input file to read data from:
-      bool do_regrid; int start;   // will be ignored
-      find_pism_input(m_climate_file, do_regrid, start);
-
-      m_log->message(2,
-                 "  - Option %s_file is not set. Trying the input file '%s'...\n",
-                 climate_option_prefix.c_str(), m_climate_file.c_str());
-    }
-
-    
-    std::string index_option_prefix = "IndexForcing_index";
-  
-    options::String index_file(index_option_prefix + "_file",
-                         "Specifies a file with boundary conditions");
-    if (index_file.is_set()) {
-      m_index_file = index_file;
-      m_log->message(2,
-                 "  - Reading boundary conditions from '%s'...\n",
-                 m_index_file.c_str());
-    } else {
-      // find PISM input file to read data from:
-      bool do_regrid; int start;   // will be ignored
-      find_pism_input(m_index_file, do_regrid, start);
-
-      m_log->message(2,
-                 "  - Option %s_file is not set. Trying the input file '%s'...\n",
-                 index_option_prefix.c_str(), m_index_file.c_str());
-    }
-    
-    options::Integer period(index_option_prefix + "_period",
-                            "Specifies the length of the climate index data period (in years)", 0);
-    if (period.value() < 0.0) {
-      throw RuntimeError::formatted("invalid %s_period %d (period length cannot be negative)",
-                                    option_prefix.c_str(), period.value());
-    }
-    m_period = (unsigned int)period;
-
-    options::Integer ref_year(index_option_prefix + "_reference_year",
-                              "Boundary condition reference year", 0);
-    if (ref_year.is_set()) {
-      m_reference_time = units::convert(Model::m_sys, ref_year, "years", "seconds");
-    } else {
-      m_reference_time = 0;
-    }
-  
+  m_index = new Timeseries(*m_grid, "glac_index", m_config->get_string("time_dimension_name"));
+  m_index->metadata().set_string("units", "");
+  m_index->metadata().set_string("long_name", "glacial index");
+  m_index->dimension_metadata().set_string("units", m_grid->ctx()->time()->units_string());
+ 
 }
 
 
 
-IndexForcing::~IndexForcing(pism::IceGrid::ConstPtr g) {
+IndexForcing::~IndexForcing() {
 
   // Do nothing....
   
@@ -141,8 +164,214 @@ void IndexForcing::init()
 void IndexForcing::init_data()
 {
   
+  m_T_0.init(m_climate_file, 0, 1);
+  m_T_1.init(m_climate_file, 0, 1);
+  m_P_0.init(m_climate_file, 0, 1);
+  m_P_1.init(m_climate_file, 0, 1);
   
   
+  m_log->message(2,
+	    "  reading %s data from forcing file %s...\n",
+	    m_index->short_name.c_str(), m_index_file->c_str());
+
+  PIO nc(g->com, "netcdf3");
+  nc.open(m_index_file, PISM_READONLY);
+  {
+    m_index->read(nc, *g->ctx()->time(), *g->ctx()->log());
+  }
+  nc.close();
+  
+  //Maybe already calculate the forcing fields at sea level here Instead of repeating the same calculation over and over again!
+  
+}
+
+void IndexForcing::add_vars_to_output_impl(const std::__cxx11::string& keyword, std::set< std::__cxx11::string >& result)
+{
+  result.insert("precipitation");
+  result.insert("air_temp");
+
+  if (keyword == "big") {
+    result.insert("air_temp_snapshot");
+  }
+}
+
+void IndexForcing::define_variables_impl(const std::set< std::__cxx11::string >& vars, const PIO& nc, IO_Type nctype)
+{
+  if (set_contains(vars, "air_temp_snapshot")) {
+    std::string order = m_grid->ctx()->config()->get_string("output_variable_order");
+    io::define_spatial_variable(m_air_temp_snapshot, *m_grid, nc, nctype, order, false);
+  }
+
+  if (set_contains(vars, "precipitation")) {
+    m_precipitation.define(nc, nctype);
+  }
+
+  if (set_contains(vars, "air_temp")) {
+    m_air_temp.define(nc, nctype);
+  }
+}
+
+void IndexForcing::write_variables_impl(const std::set< std::__cxx11::string >& vars, const PIO& nc)
+{
+  if (set_contains(vars, "air_temp_snapshot")) {
+    IceModelVec2S tmp;
+    tmp.create(m_grid, "air_temp_snapshot", WITHOUT_GHOSTS);
+    tmp.metadata() = m_air_temp_snapshot;
+
+    temp_snapshot(tmp);
+
+    tmp.write(nc);
+  }
+
+  if (set_contains(vars, "precipitation")) {
+    m_precipitation.write(nc);
+  }
+
+  if (set_contains(vars, "air_temp")) {
+    m_air_temp.write(nc);
+  }
+}
+
+void IndexForcing::begin_pointwise_access()
+{
+  m_T_0.begin_access();
+  m_T_1.begin_access();
+  m_P_0.begin_access();
+  m_P_1.begin_access();
+  m_h_0.begin_access();
+  m_h_1.begin_access();
+  m_surface->begin_access();
+  m_precipitation.begin_access();
+  m_air_temp.begin_access();
+}
+
+void IndexForcing::end_pointwise_access()
+{
+  m_T_0.end_access();
+  m_T_1.end_access();
+  m_P_0.end_access();
+  m_P_1.end_access();
+  m_h_0.end_access();
+  m_h_1.end_access();
+  m_surface->end_access();
+  m_precipitation.end_access();
+  m_air_temp.end_access();
+}
+
+MaxTimestep IndexForcing::max_timestep_impl(double t)
+{
+  (void) t;
+  return MaxTimestep();
+}
+
+void IndexForcing::mean_annual_temp(IceModelVec2S& result)
+{
+  result.copy_from(m_air_temp);
+}
+
+void IndexForcing::temp_snapshot(IceModelVec2S& result)
+{
+  result.copy_from(m_air_temp);
+}
+
+void IndexForcing::mean_precipitation(IceModelVec2S& result)
+{
+  result.copy_from(m_precipitation);
+}
+
+void IndexForcing::update_impl(double my_t, double my_dt)
+{
+
+  m_surface = m_grid->variables().get_2d_scalar("surface_altitude");
+  
+  m_t_index = m_grid->ctx()->time()->mod(my_t - m_reference_time, m_period);
+  
+  double index = (*m_index)(m_t_index);
+  
+  m_T_0.update(my_t, my_dt);
+  m_T_0.average(my_t, my_dt);
+  m_T_1.update(my_t, my_dt);
+  m_T_1.average(my_t, my_dt);
+  m_P_0.update(my_t, my_dt);
+  m_P_0.average(my_t, my_dt);
+  m_P_1.update(my_t, my_dt);
+  m_P_1.average(my_t, my_dt);
+  
+  IceModelVec::AccessList list;
+  list.add(m_air_temp);
+  list.add(m_precipitation);
+  list.add(m_surface);
+  list.add(m_T_0);
+  list.add(m_T_1);
+  list.add(m_P_0);
+  list.add(m_P_1);
+  list.add(m_h_0);
+  list.add(m_h_1);
+  
+  for (Points p(*m_grid); p; p.next()) {
+    const int i = p.i(), j = p.j();
+
+    m_air_temp(i, j) = compute_T_ij(m_T_0(i,j), m_T_1(i,j), m_h_0(i,j), m_h_1(i,j), m_surface(i,j), index);
+    m_precipitation(i, j) = compute_P_ij(m_P_0(i,j), m_P_1(i,j), m_h_0(i,j), m_h_1(i,j), m_surface(i,j), index);
+  }
+  
+}
+
+void IndexForcing::init_timeseries(const std::vector< double >& ts)
+{
+  m_surface = m_grid->variables().get_2d_scalar("surface_altitude");
+  
+  int N = ts.size();
+  m_ts_index.resize(N);
+  
+  for(unsigned int k=0; k<N; k++){
+    m_ts_index[k] = (*m_index)(m_grid->ctx()->time()->mod(ts[k] - m_reference_time, m_period));
+  }
+  
+  m_T_0.init_interpolation(ts);
+  m_T_1.init_interpolation(ts);
+  m_P_0.init_interpolation(ts);
+  m_P_1.init_interpolation(ts);
+  
+  m_ts_times = ts;
+  
+}
+
+void IndexForcing::temp_time_series(int i, int j, std::vector< double >& result)
+{
+  std::vector<double> T0(m_ts_times.size()),
+		      T1(m_ts_times.size());
+		      
+  m_T_0.interp(i, j, T0);
+  m_T_1.interp(i, j, T1);
+		      
+  for (unsigned int k = 0; k < m_ts_times.size(); k++) {
+    result[k] = compute_T_ij(T0[k], T1[k], m_h_0(i,j), m_h_1(i,j), m_surface(i,j), m_ts_index[k]);
+  }
+}
+
+void IndexForcing::precip_time_series(int i, int j, std::vector< double >& result)
+{
+  std::vector<double> P0(m_ts_times.size()),
+		      P1(m_ts_times.size());
+  
+  m_P_0.interp(i, j, P0);
+  m_P_1.interp(i, j, P1);
+		      
+  for (unsigned int k = 0; k < m_ts_times.size(); k++) {
+    result[k] = compute_P_ij(P0[k], P1[k], m_h_0(i,j), m_h_1(i,j), m_surface(i,j), m_ts_index[k]);
+  }
+}
+
+
+double IndexForcing::compute_T_ij(double T0, double T1, double h0, double h1, double h, double index)
+{
+  return(index);
+}
+
+double IndexForcing::compute_P_ij(double P0, double P1, double h0, double h1, double h, double index)
+{
+  return(index);
 }
 
 

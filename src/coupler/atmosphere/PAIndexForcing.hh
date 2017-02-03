@@ -52,12 +52,22 @@ protected:
   double compute_T_ij(double T0, double T1, double h0, double h1, double h, double index);
   double compute_P_ij(double P0, double P1, double h0, double h1, double h, double index);
 protected:
-  std::string m_climate_file, m_index_file;
+  std::string m_climate_file, 
+	      m_index_file;
   unsigned int m_period;
-  double m_reference_time;
-  Timeseries m_index;
-  IceModelVec2S m_precipitation, m_air_temp, m_h_0, m_h_1, m_current_surface_elevation;
-  IceModelVec2T m_T_0, m_T_1, m_P_0, m_P_1;
+  double m_reference_time,
+	 m_t_index;
+  std::vector<double> m_ts_index;
+  Timeseries *m_index;
+  IceModelVec2S m_precipitation, 
+		m_air_temp, 
+		m_h_0, 
+		m_h_1, 
+		*m_surface;
+  IceModelVec2T m_T_0, 
+		m_T_1, 
+		m_P_0, 
+		m_P_1;
   SpatialVariableMetadata m_air_temp_snapshot;
 };
 
