@@ -187,7 +187,7 @@ void IndexForcing::init_data()
   
 }
 
-void IndexForcing::add_vars_to_output_impl(const std::__cxx11::string& keyword, std::set< std::__cxx11::string >& result)
+void IndexForcing::add_vars_to_output_impl(const std::string& keyword, std::set< std::string >& result)
 {
   result.insert("precipitation");
   result.insert("air_temp");
@@ -197,7 +197,7 @@ void IndexForcing::add_vars_to_output_impl(const std::__cxx11::string& keyword, 
   }
 }
 
-void IndexForcing::define_variables_impl(const std::set< std::__cxx11::string >& vars, const PIO& nc, IO_Type nctype)
+void IndexForcing::define_variables_impl(const std::set< std::string >& vars, const PIO& nc, IO_Type nctype)
 {
   if (set_contains(vars, "air_temp_snapshot")) {
     std::string order = m_grid->ctx()->config()->get_string("output_variable_order");
@@ -213,7 +213,7 @@ void IndexForcing::define_variables_impl(const std::set< std::__cxx11::string >&
   }
 }
 
-void IndexForcing::write_variables_impl(const std::set< std::__cxx11::string >& vars, const PIO& nc)
+void IndexForcing::write_variables_impl(const std::set< std::string >& vars, const PIO& nc)
 {
   if (set_contains(vars, "air_temp_snapshot")) {
     IceModelVec2S tmp;
