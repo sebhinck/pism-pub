@@ -31,6 +31,7 @@
 #include "PAAnomaly.hh"
 #include "PACosineYearlyCycle.hh"
 #include "PAWeatherStation.hh"
+#include "PAIndexForcing.hh"
 
 namespace pism {
 namespace atmosphere {
@@ -46,6 +47,7 @@ Factory::Factory(IceGrid::ConstPtr g)
   add_model<SeaRISEGreenland>("searise_greenland");
   add_model<CosineYearlyCycle>("yearly_cycle");
   add_model<WeatherStation>("one_station");
+  add_model<IndexForcing>("index");
   set_default("given");
 
   add_modifier<Anomaly>("anomaly");

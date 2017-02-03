@@ -52,7 +52,8 @@ protected:
   double compute_T_ij(double T0, double T1, double h0, double h1, double h, double index);
   double compute_P_ij(double P0, double P1, double h0, double h1, double h, double index);
 protected:
-  std::string m_climate_file, 
+  std::string m_option_prefix,
+	      m_climate_file, 
 	      m_index_file;
   unsigned int m_period;
   double m_reference_time,

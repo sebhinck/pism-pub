@@ -35,6 +35,8 @@ namespace atmosphere {
 IndexForcing::IndexForcing(IceGrid::ConstPtr g)
   : AtmosphereModel(g),
     m_air_temp_snapshot(m_sys, "air_temp_snapshot") {
+      
+  m_option_prefix = "-atmosphere_index";
 
   // allocate IceModelVecs for storing temperature and precipitation fields:
 
@@ -86,7 +88,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
 void IndexForcing::process_options()
 {
   
-  std::string climate_option_prefix = "IndexForcing_climate";
+  std::string climate_option_prefix = m_option_prefix + "_climate";
 
   options::String climate_file(climate_option_prefix + "_file",
 			"Specifies a file with boundary conditions");
@@ -106,7 +108,7 @@ void IndexForcing::process_options()
   }
 
 
-  std::string index_option_prefix = "IndexForcing_index";
+  std::string index_option_prefix = m_option_prefix + "_index";
 
   options::String index_file(index_option_prefix + "_file",
 			"Specifies a file with boundary conditions");
