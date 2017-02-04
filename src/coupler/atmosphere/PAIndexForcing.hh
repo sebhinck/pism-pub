@@ -50,6 +50,8 @@ protected:
                                      const PIO &nc, IO_Type nctype);
   void process_options();
   void init_data();
+  double applyLapseRateT(double T, double h_ref, double h);
+  double applyLapseRateP(double P, double h_ref, double h);
   double compute_T_ij(double T0, double T1, double h0, double h1, double h, double index);
   double compute_P_ij(double P0, double P1, double h0, double h1, double h, double index);
 protected:
@@ -58,7 +60,10 @@ protected:
 	      m_index_file;
   unsigned int m_period;
   double m_reference_time,
-	 m_t_index;
+	 m_t_index,
+	 m_LapseRateT,
+	 m_LapseRateP,
+	 m_h_thresholdP;
   std::vector<double> m_ts_index;
   Timeseries *m_index;
   IceModelVec2S m_precipitation, 

@@ -97,6 +97,10 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
                           "m",
                           ""); // no CF standard_name ??
   m_h_1.set_time_independent(true);
+  
+  m_LapseRateT = 5./1000.; // 5K/km
+  m_LapseRateP = 1./1000.; // lookup...
+  m_h_thresholdP = 5000. ; // threshold height for precip
 }
 
 void IndexForcing::process_options()
@@ -399,6 +403,12 @@ void IndexForcing::precip_time_series(int i, int j, std::vector< double >& resul
 
 double IndexForcing::compute_T_ij(double T0, double T1, double h0, double h1, double h, double index)
 {
+  double T0_sl = applyLapseRateT(T0, h0, 0.0), // do at init?!
+    T1_sl = applyLapseRateT(T1, h1, 0.0),
+    T_sl = (T1_sl - T0_sl) * index + T0_sl,
+    T = applyLapseRateT(T_sl, 0.0, h);
+  //return(T);
+    
   return(index);
 }
 
@@ -406,6 +416,22 @@ double IndexForcing::compute_P_ij(double P0, double P1, double h0, double h1, do
 {
   return(index);
 }
+
+double IndexForcing::applyLapseRateT(double T, double h_ref, double h)
+{
+  double result = T - m_LapseRateT * (h - h_ref);
+  return(result);
+}
+
+double IndexForcing::applyLapseRateP(double P, double h_ref, double h)
+{
+  double result = P;
+  (void) h;
+  (void) h_ref;
+  return(result);
+}
+
+
 
 
 
