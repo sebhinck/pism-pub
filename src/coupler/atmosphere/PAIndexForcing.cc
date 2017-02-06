@@ -106,9 +106,6 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
 void IndexForcing::process_options()
 {
   
-  bool do_regrid = false;
-  int start = -1;
-  
   std::string climate_option_prefix = m_option_prefix + "_climate";
 
   options::String climate_file(climate_option_prefix + "_file",
@@ -128,21 +125,6 @@ void IndexForcing::process_options()
 		climate_option_prefix.c_str(), m_climate_file.c_str());
   }
   
-  
-  
-  
-  if (do_regrid) {
-    m_h_0.regrid(m_climate_file, CRITICAL);
-    m_h_1.regrid(m_climate_file, CRITICAL);
-  } else {
-    m_h_0.read(m_climate_file, start); // fails if not found!
-    m_h_1.read(m_climate_file, start);
-  }
-  
-  
-  
-
-
   std::string index_option_prefix = m_option_prefix + "_index";
 
   options::String index_file(index_option_prefix + "_file",
@@ -219,6 +201,19 @@ void IndexForcing::init_data()
   nc.close();
   
   //Maybe already calculate the forcing fields at sea level here Instead of repeating the same calculation over and over again!
+  
+  
+  bool do_regrid = false;
+  int start = 0;  
+  
+  if (do_regrid) {
+    m_h_0.regrid(m_climate_file, CRITICAL);
+    m_h_1.regrid(m_climate_file, CRITICAL);
+  } else {
+    m_h_0.read(m_climate_file, start); // fails if not found!
+    m_h_1.read(m_climate_file, start);
+  }
+  
   
 }
 
