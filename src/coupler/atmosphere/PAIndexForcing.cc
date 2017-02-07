@@ -436,7 +436,7 @@ double IndexForcing::applyLapseRateT(double T, double h_ref, double h)
 double IndexForcing::applyLapseRateP(double P, double h_ref, double h)
 {
   (void) h_ref;
-  double result = P * exp(m_precip_lapse_rate * std::max(0.0, (h - m_precip_thresh_height)));
+  double result = P * exp(-1.0 * m_precip_lapse_rate * std::max(0.0, (h - m_precip_thresh_height)));
   return(result);
 }
 
