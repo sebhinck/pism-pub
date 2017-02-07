@@ -49,14 +49,12 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
                           ""); // no CF standard_name ??
   m_precipitation.metadata().set_string("glaciological_units", "m year-1");
   m_precipitation.write_in_glaciological_units = true;
-  m_precipitation.set_time_independent(true);
 
   m_air_temp.create(m_grid, "air_temp", WITHOUT_GHOSTS);
   m_air_temp.set_attrs("climate_state",
                      "mean annual near-surface (2 m) air temperature",
                      "K",
                      "");
-  m_air_temp.set_time_independent(true);
 
   // initialize metadata for "air_temp_snapshot"
   m_air_temp_snapshot.set_string("pism_intent", "diagnostic");
@@ -65,8 +63,6 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
   m_air_temp_snapshot.set_string("units", "K");
   
   process_options();
-  
-//PetscErrorCode ierr;
   
   m_T_0.set_n_records(12);
   m_T_0.create(g, "airtemp_0");
@@ -98,9 +94,9 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
                           ""); // no CF standard_name ??
   m_h_1.set_time_independent(true);
   
-  m_LapseRateT = 5./1000.; // 5K/km
-  m_LapseRateP = 1./1000.; // lookup...
-  m_h_thresholdP = 5000. ; // threshold height for precip
+  m_temp_lapse_rate = 5.; // temp lapse rate [K/km]
+  m_precip_lapse_rate = 1.; // precip_lapse rate [m/year/km]
+  m_precip_thresh_height = 5. ; // threshold height for precip [km]
 }
 
 void IndexForcing::process_options()
@@ -177,6 +173,15 @@ IndexForcing::~IndexForcing() {
 
 void IndexForcing::init()
 {
+  m_temp_lapse_rate = options::Real("-temp_lapse_rate", "Elevation lapse rate for the temperature," "in K per km", m_temp_lapse_rate);
+  m_temp_lapse_rate = units::convert(m_sys, m_temp_lapse_rate, "K/km", "K/m");
+
+  m_precip_lapse_rate = options::Real("-precip_lapse_rate", "elevation lapse rate for the surface mass balance," "in m/year per km", m_precip_lapse_rate);
+  m_precip_lapse_rate = units::convert(m_sys, m_precip_lapse_rate, "m/year / km", "m/s / m");
+
+  m_precip_thresh_height = options::Real("-precip_thresh_height", "Threshold height for precipitation," "km", m_precip_thresh_height);
+  m_precip_thresh_height = units::convert(m_sys, m_precip_thresh_height, "km", "m");
+
   init_data();
 }
 
@@ -202,6 +207,9 @@ void IndexForcing::init_data()
   
   //Maybe already calculate the forcing fields at sea level here Instead of repeating the same calculation over and over again!
   
+  m_log->message(2,
+	    "  reading surface elevation at t0 & t1 data from forcing file %s...\n",
+	     m_index_file.c_str());
   
   bool do_regrid = false;
   int start = 0;  
@@ -314,20 +322,27 @@ void IndexForcing::mean_precipitation(IceModelVec2S& result)
 void IndexForcing::update_impl(double my_t, double my_dt)
 {
 
+  m_t  = m_grid->ctx()->time()->mod(my_t, 1);
+  m_dt = my_dt;
+
+ // m_log->message(5,
+	//	" Update at t: '%s', dt:'%s'...\n",
+	//	m_grid->ctx()->time()->date(my_t).c_str(), m_grid->ctx()->time()->date(my_dt).c_str());
+
   m_surface = m_grid->variables().get_2d_scalar("surface_altitude");
   
   m_t_index = m_grid->ctx()->time()->mod(my_t - m_reference_time, m_period);
   
   double index = (*m_index)(m_t_index);
   
-  m_T_0.update(my_t, my_dt);
-  m_T_0.average(my_t, my_dt);
-  m_T_1.update(my_t, my_dt);
-  m_T_1.average(my_t, my_dt);
-  m_P_0.update(my_t, my_dt);
-  m_P_0.average(my_t, my_dt);
-  m_P_1.update(my_t, my_dt);
-  m_P_1.average(my_t, my_dt);
+  m_T_0.update(m_t, m_dt);
+  m_T_0.average(m_t, m_dt);
+  m_T_1.update(m_t, m_dt);
+  m_T_1.average(m_t, m_dt);
+  m_P_0.update(m_t, m_dt);
+  m_P_0.average(m_t, m_dt);
+  m_P_1.update(m_t, m_dt);
+  m_P_1.average(m_t, m_dt);
   
   IceModelVec::AccessList list;
   list.add(m_air_temp);
@@ -355,18 +370,18 @@ void IndexForcing::init_timeseries(const std::vector< double >& ts)
   
   int N = ts.size();
   m_ts_index.resize(N);
+  m_ts_times.resize(N);
   
   for(unsigned int k=0; k<N; k++){
     m_ts_index[k] = (*m_index)(m_grid->ctx()->time()->mod(ts[k] - m_reference_time, m_period));
+    m_ts_times[k] = ts[k];
   }
   
   m_T_0.init_interpolation(ts);
   m_T_1.init_interpolation(ts);
   m_P_0.init_interpolation(ts);
   m_P_1.init_interpolation(ts);
-  
-  m_ts_times = ts;
-  
+
 }
 
 void IndexForcing::temp_time_series(int i, int j, std::vector< double >& result)
@@ -402,27 +417,26 @@ double IndexForcing::compute_T_ij(double T0, double T1, double h0, double h1, do
     T1_sl = applyLapseRateT(T1, h1, 0.0),
     T_sl = (T1_sl - T0_sl) * index + T0_sl,
     T = applyLapseRateT(T_sl, 0.0, h);
-  //return(T);
-    
-  return(index);
+   
+  return(T);
 }
 
 double IndexForcing::compute_P_ij(double P0, double P1, double h0, double h1, double h, double index)
 {
-  return(index);
+  double result = applyLapseRateP((P0 + (P1 - P0) * index), 0.0, h); //h_ref is ignored anyway!
+  return(std::max(0.0, result));
 }
 
 double IndexForcing::applyLapseRateT(double T, double h_ref, double h)
 {
-  double result = T - m_LapseRateT * (h - h_ref);
+  double result = T - m_temp_lapse_rate * (h - h_ref);
   return(result);
 }
 
 double IndexForcing::applyLapseRateP(double P, double h_ref, double h)
 {
-  double result = P;
-  (void) h;
   (void) h_ref;
+  double result = P * exp(m_precip_lapse_rate * std::max(0.0, (h - m_precip_thresh_height)));
   return(result);
 }
 

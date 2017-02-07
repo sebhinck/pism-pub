@@ -61,9 +61,9 @@ protected:
   unsigned int m_period;
   double m_reference_time,
 	 m_t_index,
-	 m_LapseRateT,
-	 m_LapseRateP,
-	 m_h_thresholdP;
+	 m_temp_lapse_rate,
+	 m_precip_lapse_rate,
+	 m_precip_thresh_height;
   std::vector<double> m_ts_index;
   Timeseries *m_index;
   IceModelVec2S m_precipitation, 
