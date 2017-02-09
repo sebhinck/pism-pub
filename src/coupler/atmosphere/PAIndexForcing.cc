@@ -188,10 +188,10 @@ void IndexForcing::init()
 void IndexForcing::init_data()
 {
   
-  m_T_0.init(m_climate_file, 0, 1);
-  m_T_1.init(m_climate_file, 0, 1);
-  m_P_0.init(m_climate_file, 0, 1);
-  m_P_1.init(m_climate_file, 0, 1);
+  m_T_0.init(m_climate_file, 1, 0.0);
+  m_T_1.init(m_climate_file, 1, 0.0);
+  m_P_0.init(m_climate_file, 1, 0.0);
+  m_P_1.init(m_climate_file, 1, 0.0);
   
   
   m_log->message(2,
@@ -322,7 +322,7 @@ void IndexForcing::mean_precipitation(IceModelVec2S& result)
 void IndexForcing::update_impl(double my_t, double my_dt)
 {
 
-  m_t  = m_grid->ctx()->time()->mod(my_t, 1);
+  m_t  = my_t; //m_grid->ctx()->time()->mod(my_t, 1);
   m_dt = my_dt;
 
  // m_log->message(5,
