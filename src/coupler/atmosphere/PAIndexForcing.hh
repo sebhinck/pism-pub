@@ -81,4 +81,4 @@ protected:
 } // end of namespace atmosphere
 } // end of namespace pism
 
-#endif /* _PACONSTANTPIK_H_ */
+#endif /* _PAINDEXFORCING_H_ */
