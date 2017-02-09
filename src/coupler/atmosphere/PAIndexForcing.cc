@@ -95,7 +95,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
   m_h_1.set_time_independent(true);
   
   m_temp_lapse_rate = 5.; // temp lapse rate [K/km]
-  m_precip_lapse_rate = 1.; // precip_lapse rate [m/year/km]
+  m_precip_decay_rate = log(2) / 1.; // precip_decay rate [1/km]
   m_precip_thresh_height = 5. ; // threshold height for precip [km]
 }
 
@@ -176,8 +176,8 @@ void IndexForcing::init()
   m_temp_lapse_rate = options::Real("-temp_lapse_rate", "Elevation lapse rate for the temperature," "in K per km", m_temp_lapse_rate);
   m_temp_lapse_rate = units::convert(m_sys, m_temp_lapse_rate, "K/km", "K/m");
 
-  m_precip_lapse_rate = options::Real("-precip_lapse_rate", "elevation lapse rate for the surface mass balance," "in m/year per km", m_precip_lapse_rate);
-  m_precip_lapse_rate = units::convert(m_sys, m_precip_lapse_rate, "m/year / km", "m/s / m");
+  m_precip_decay_rate = options::Real("-precip_decay_rate", "exp. decay rate for the surface mass balance," "in 1/km", m_precip_decay_rate);
+  m_precip_decay_rate = units::convert(m_sys, m_precip_decay_rate, "1 / km", "1 / m");
 
   m_precip_thresh_height = options::Real("-precip_thresh_height", "Threshold height for precipitation," "km", m_precip_thresh_height);
   m_precip_thresh_height = units::convert(m_sys, m_precip_thresh_height, "km", "m");
@@ -436,7 +436,7 @@ double IndexForcing::applyLapseRateT(double T, double h_ref, double h)
 double IndexForcing::applyLapseRateP(double P, double h_ref, double h)
 {
   (void) h_ref;
-  double result = P * exp(-1.0 * m_precip_lapse_rate * std::max(0.0, (h - m_precip_thresh_height)));
+  double result = P * exp(-1.0 * m_precip_decay_rate * std::max(0.0, (h - m_precip_thresh_height)));
   return(result);
 }
 

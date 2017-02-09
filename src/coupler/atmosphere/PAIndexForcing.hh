@@ -62,7 +62,7 @@ protected:
   double m_reference_time,
 	 m_t_index,
 	 m_temp_lapse_rate,
-	 m_precip_lapse_rate,
+	 m_precip_decay_rate,
 	 m_precip_thresh_height;
   std::vector<double> m_ts_index;
   Timeseries *m_index;
