@@ -202,8 +202,6 @@ void define_dimension(const PIO &nc, unsigned long int length,
                       const VariableMetadata &metadata) {
   std::string name = metadata.get_name();
   try {
-    nc.redef();
-
     nc.def_dim(name, length);
 
     std::vector<std::string> dims(1, name);
@@ -284,7 +282,9 @@ static void define_dimensions(const SpatialVariableMetadata& var,
     define_dimension(nc, grid.Mx(), var.get_x());
     nc.put_att_double(x_name, "spacing_meters", PISM_DOUBLE,
                       grid.x(1) - grid.x(0));
-    nc.put_1d_var(x_name, 0, grid.x().size(), grid.x());
+    nc.put_att_double(x_name, "spacing_meters", PISM_DOUBLE,
+                      grid.x(1) - grid.x(0));
+    nc.put_att_double(x_name, "written", PISM_INT, 0.0);
   }
 
   // y
@@ -293,7 +293,7 @@ static void define_dimensions(const SpatialVariableMetadata& var,
     define_dimension(nc, grid.My(), var.get_y());
     nc.put_att_double(y_name, "spacing_meters", PISM_DOUBLE,
                       grid.y(1) - grid.y(0));
-    nc.put_1d_var(y_name, 0, grid.y().size(), grid.y());
+    nc.put_att_double(y_name, "written", PISM_INT, 0.0);
   }
 
   // z
@@ -304,6 +304,7 @@ static void define_dimensions(const SpatialVariableMetadata& var,
       // make sure we have at least one level
       unsigned int nlevels = std::max(levels.size(), (size_t)1);
       define_dimension(nc, nlevels, var.get_z());
+      nc.put_att_double(z_name, "written", PISM_INT, 0.0);
 
       if (nlevels > 1) {
         double dz_max = levels[1] - levels[0];
@@ -320,9 +321,37 @@ static void define_dimensions(const SpatialVariableMetadata& var,
         nc.put_att_double(z_name, "spacing_max_meters", PISM_DOUBLE,
                           dz_max);
       }
-
-      nc.put_1d_var(z_name, 0, levels.size(), levels);
     }
+  }
+}
+
+static void write_dimension_data(const PIO &file, const std::string &name, const std::vector<double> &data) {
+  std::vector<double> attr = file.get_att_double(name, "written");
+  const bool written = attr.size() > 0 and attr[0] > 0.0;
+  if (not written) {
+    file.put_1d_var(name, 0, data.size(), data);
+    file.put_att_double(name, "written", PISM_INT, 1.0);
+  }
+}
+
+void write_dimensions(const SpatialVariableMetadata& var,
+                      const IceGrid& grid, const PIO &nc) {
+  // x
+  std::string x_name = var.get_x().get_name();
+  if (nc.inq_dim(x_name)) {
+    write_dimension_data(nc, x_name, grid.x());
+  }
+
+  // y
+  std::string y_name = var.get_y().get_name();
+  if (nc.inq_dim(y_name)) {
+    write_dimension_data(nc, y_name, grid.y());
+  }
+
+  // z
+  std::string z_name = var.get_z().get_name();
+  if (nc.inq_dim(z_name)) {
+    write_dimension_data(nc, z_name, var.get_levels());
   }
 }
 
@@ -569,8 +598,6 @@ void define_spatial_variable(const SpatialVariableMetadata &var,
     t = grid.ctx()->config()->get_string("time.dimension_name");
   }
 
-  nc.redef();
-
   if (not t.empty()) {
     dims.push_back(t);
   }
@@ -732,9 +759,10 @@ void write_spatial_variable(const SpatialVariableMetadata &var,
                                   file.inq_filename().c_str());
   }
 
+  write_dimensions(var, grid, file);
+
   // make sure we have at least one level
-  const std::vector<double>& zlevels = var.get_levels();
-  unsigned int nlevels = std::max(zlevels.size(), (size_t)1);
+  unsigned int nlevels = std::max(var.get_levels().size(), (size_t)1);
 
   std::string
     units               = var.get_string("units"),
@@ -1008,7 +1036,6 @@ void define_timeseries(const TimeseriesMetadata& var,
   }
 
   if (not nc.inq_var(name)) {
-    nc.redef();
     nc.def_var(name, nctype, {dimension_name});
   }
 
@@ -1138,8 +1165,6 @@ void define_time_bounds(const TimeBoundsMetadata& var,
     return;
   }
 
-  nc.redef();
-
   if (not nc.inq_dim(dimension_name)) {
     nc.def_dim(dimension_name, PISM_UNLIMITED);
   }
@@ -1147,8 +1172,6 @@ void define_time_bounds(const TimeBoundsMetadata& var,
   if (not nc.inq_dim(bounds_name)) {
     nc.def_dim(bounds_name, 2);
   }
-
-  nc.redef();
 
   nc.def_var(name, nctype, {dimension_name, bounds_name});
 
@@ -1266,7 +1289,6 @@ void write_time_bounds(const PIO &nc, const TimeBoundsMetadata &metadata,
       start{static_cast<unsigned int>(t_start), 0},
       count{static_cast<unsigned int>(tmp.size()) / 2, 2};
 
-    nc.enddef();
     nc.put_vara_double(name, start, count, &tmp[0]);
 
   } catch (RuntimeError &e) {
