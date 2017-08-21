@@ -282,8 +282,6 @@ static void define_dimensions(const SpatialVariableMetadata& var,
     define_dimension(nc, grid.Mx(), var.get_x());
     nc.put_att_double(x_name, "spacing_meters", PISM_DOUBLE,
                       grid.x(1) - grid.x(0));
-    nc.put_att_double(x_name, "spacing_meters", PISM_DOUBLE,
-                      grid.x(1) - grid.x(0));
     nc.put_att_double(x_name, "written", PISM_INT, 0.0);
   }
 
