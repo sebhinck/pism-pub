@@ -44,7 +44,7 @@ struct gpbld_constants gpbld_get_constants() {
   return gpbld;
 }
 
-double paterson_budd_softness(double T_pa) {
+inline double paterson_budd_softness(double T_pa) {
   double
     QR = gpbld.Q_cold / gpbld.ideal_gas_constant,
     A  = gpbld.A_cold;
@@ -57,7 +57,7 @@ double paterson_budd_softness(double T_pa) {
   return A * vdt::fast_exp(-QR / T_pa);
 }
 
-double paterson_budd_hardness(double T_pa) {
+inline double paterson_budd_hardness(double T_pa) {
 
   double
     QR = gpbld.Q_cold / gpbld.ideal_gas_constant / 3.0,
@@ -73,6 +73,7 @@ double paterson_budd_hardness(double T_pa) {
 
 void paterson_budd_hardness_n(double *T_pa,
                               unsigned int n, double *result) {
+#pragma ivdep
   for (unsigned int k = 0; k < n; ++k) {
     result[k] = paterson_budd_hardness(T_pa[k]);
   }
@@ -80,7 +81,7 @@ void paterson_budd_hardness_n(double *T_pa,
 
 
 /* Glen-Paterson-Budd-Lliboutry-Duval softness (temperate case). */
-double gpbld_softness_temperate(double E, double E_cts, double P) {
+inline double gpbld_softness_temperate(double E, double E_cts, double P) {
   double omega = enth_water_fraction(E, E_cts, P);
   if (omega > gpbld.water_frac_observed_limit) {
     omega = gpbld.water_frac_observed_limit;
@@ -89,7 +90,7 @@ double gpbld_softness_temperate(double E, double E_cts, double P) {
   return paterson_budd_softness(gpbld.T_melting) * (1.0 + gpbld.water_fraction_coeff * omega);
 }
 
-double gpbld_softness(double E, double P) {
+inline double gpbld_softness(double E, double P) {
   const double E_cts = enth_enthalpy_cts(P);
   const double softness_cold = paterson_budd_softness(enth_pressure_adjusted_temperature(E, P));
   const double softness_temp = gpbld_softness_temperate(E, E_cts, P);
@@ -101,7 +102,7 @@ double gpbld_softness(double E, double P) {
   }
 }
 
-double gpbld_hardness_temperate(double E, double E_cts, double P) {
+inline double gpbld_hardness_temperate(double E, double E_cts, double P) {
   double omega = enth_water_fraction(E, E_cts, P);
   if (omega > gpbld.water_frac_observed_limit) {
     omega = gpbld.water_frac_observed_limit;
@@ -126,6 +127,7 @@ double gpbld_hardness(double E, double P) {
 
 void gpbld_hardness_n(const double *E, const double *P,
                       unsigned int n, double *result) {
+#pragma ivdep
   for (unsigned int k = 0; k < n; ++k) {
     // we could call gpbld_hardness(E[k], P[k]), but clang thinks that inlining it is too costly
     const double E_cts = enth_enthalpy_cts(P[k]);
@@ -140,12 +142,13 @@ void gpbld_hardness_n(const double *E, const double *P,
   }
 }
 
-double gpbld_flow(double stress, double E, double P) {
+inline double gpbld_flow(double stress, double E, double P) {
   return gpbld_softness(E, P) * (stress * stress);
 }
 
 void gpbld_flow_n(const double *stress, const double *E, const double *P,
                   unsigned int n, double *result) {
+#pragma ivdep
   for (unsigned int k = 0; k < n; ++k) {
     result[k] = gpbld_flow(stress[k], E[k], P[k]);
   }
