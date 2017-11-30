@@ -13,6 +13,7 @@ add_library (pismboundary OBJECT
   ./atmosphere/Paleo_precip.cc
   ./atmosphere/Anomaly.cc
   ./atmosphere/WeatherStation.cc
+  ./atmosphere/IndexForcing.cc
   ./atmosphere/Factory.cc
   ./ocean/OceanModel.cc
   ./ocean/Cache.cc
