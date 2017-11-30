@@ -148,7 +148,7 @@ IndexForcing::~IndexForcing() {
 
 MaxTimestep IndexForcing::max_timestep_impl(double t) const {
   (void) t;
-  return MaxTimestep("atmosphere PIK");
+  return MaxTimestep("atmosphere index");
 }
 
 
