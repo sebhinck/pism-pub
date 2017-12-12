@@ -33,41 +33,41 @@ namespace pism {
 namespace atmosphere {
 
 IndexForcing::IndexForcing(IceGrid::ConstPtr g)
-  : AtmosphereModel(g){
+  : AtmosphereModel(g) {
       
   m_option_prefix = "-atmosphere_index";
   
   m_precipitation.create(m_grid, "precipitation", WITHOUT_GHOSTS);
   m_precipitation.set_attrs("model_state", "precipitation rate",
-                            "kg m-2 second-1", "", 0);
+                                "kg m-2 second-1", "", 0);
   m_precipitation.metadata(0).set_string("glaciological_units", "kg m-2 year-1");
 
   m_air_temp.create(m_grid, "air_temp", WITHOUT_GHOSTS);
   m_air_temp.set_attrs("model_state", "mean annual near-surface air temperature",
-                       "Kelvin", "", 0);
+                           "Kelvin", "", 0);
   
   process_options();
   
   m_index = new Timeseries(*m_grid, "glac_index", m_config->get_string("time.dimension_name"));
-  m_index->variable().set_string("units", "");
+  m_index->variable().set_string("units", "1");
   m_index->variable().set_string("long_name", "glacial index");
   m_index->dimension().set_string("units", m_grid->ctx()->time()->units_string());
-  
+
   m_T0.set_n_records(12);
-  m_T0.create(g, "airtemp_0");
+  m_T0.create(m_grid, "airtemp_0");
   m_T0.set_attrs("climate_forcing", "air temperature at t0", "K", "");
 
   m_T1.set_n_records(12);
-  m_T1.create(g, "airtemp_1");
+  m_T1.create(m_grid, "airtemp_1");
   m_T1.set_attrs("climate_forcing", "air temperature at t1", "K", "");
   
   m_P0.set_n_records(12);
-  m_P0.create(g, "precip_0");
-  m_P0.set_attrs("climate_forcing", "precipitation at t0", "m s-1", "");
+  m_P0.create(m_grid, "precip_0");
+  m_P0.set_attrs("climate_forcing", "precipitation at t0", "kg m-2 second-1", "");
   
   m_P1.set_n_records(12);
-  m_P1.create(g, "precip_1");
-  m_P1.set_attrs("climate_forcing", "precipitation at t1", "m s-1", "");
+  m_P1.create(m_grid, "precip_1");
+  m_P1.set_attrs("climate_forcing", "precipitation at t1", "kg m-2 second-1", "");
   
   m_h0.create(m_grid, "usurf_0", WITHOUT_GHOSTS);
   m_h0.set_attrs("climate_state", "surface elevation at t0", "m", ""); // no CF standard_name ??
@@ -84,51 +84,33 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr g)
 
 void IndexForcing::process_options() {
   
-  std::string climate_option_prefix = m_option_prefix + "_climate";
-
-  options::String climate_file(climate_option_prefix + "_file",
-                               "Specifies a file with boundary conditions"); 
-  if (climate_file.is_set()) {
-    m_climate_file = climate_file;
-    m_log->message(2,
-                   "  - Reading boundary conditions from '%s'...\n",
-                   m_climate_file.c_str());
-  } else {
-    m_climate_file = process_input_options(m_grid->com).filename;
-
-    m_log->message(2,
-                   "  - Option %s_file is not set. Trying the input file '%s'...\n",
-                   climate_option_prefix.c_str(), m_climate_file.c_str());
-  }
-
+  std::string index_file_prefix = m_option_prefix + "_file";
   
-  std::string index_option_prefix = m_option_prefix + "_index";
-
-  options::String index_file(index_option_prefix + "_file",
-                             "Specifies a file with boundary conditions");
+  options::String index_file(index_file_prefix,
+                               "Specifies a file with boundary conditions"); 
   if (index_file.is_set()) {
-    m_index_file = index_file;
+    m_file = index_file;
     m_log->message(2,
                    "  - Reading boundary conditions from '%s'...\n",
-                   m_index_file.c_str());
+                   m_file.c_str());
   } else {
-    m_index_file = process_input_options(m_grid->com).filename;
+    m_file = process_input_options(m_grid->com).filename;
 
     m_log->message(2,
                    "  - Option %s_file is not set. Trying the input file '%s'...\n",
-                   index_option_prefix.c_str(), m_index_file.c_str());
+                   index_file_prefix.c_str(), m_file.c_str());
   }
 
-  options::Integer period(index_option_prefix + "_period",
+  options::Integer period(m_option_prefix + "_period",
                           "Specifies the length of the climate index data period (in years)", 0);
   if (period.value() < 0.0) {
     throw RuntimeError::formatted(PISM_ERROR_LOCATION, "invalid %s_period %d (period length cannot be negative)",
-                                  index_option_prefix.c_str(), 
+                                  m_option_prefix.c_str(), 
                                   period.value());
   }
   m_period = (unsigned int)period;
 
-  options::Integer ref_year(index_option_prefix + "_reference_year",
+  options::Integer ref_year(m_option_prefix + "_reference_year",
                             "Boundary condition reference year", 
                             0);
   if (ref_year.is_set()) {
@@ -136,7 +118,6 @@ void IndexForcing::process_options() {
   } else {
     m_reference_time = 0;
   }
-  
 }
 
 
@@ -153,42 +134,49 @@ MaxTimestep IndexForcing::max_timestep_impl(double t) const {
 
 
 void IndexForcing::init_impl() {
-  m_temp_lapse_rate = options::Real("-temp_lapse_rate", "Elevation lapse rate for the temperature," "in K per km", m_temp_lapse_rate);
+  m_temp_lapse_rate = options::Real("-temp_lapse_rate", 
+                                    "Elevation lapse rate for the temperature," 
+                                    "in K per km", 
+                                    m_temp_lapse_rate);
   m_temp_lapse_rate = units::convert(m_sys, m_temp_lapse_rate, "K/km", "K/m");
 
-  m_precip_decay_rate = options::Real("-precip_decay_rate", "exp. decay rate for the surface mass balance," "in 1/km", m_precip_decay_rate);
+  m_precip_decay_rate = options::Real("-precip_decay_rate", 
+                                      "exp. decay rate for the surface mass balance," 
+                                      "in 1/km", 
+                                      m_precip_decay_rate);
   m_precip_decay_rate = units::convert(m_sys, m_precip_decay_rate, "1 / km", "1 / m");
 
-  m_precip_thresh_height = options::Real("-precip_thresh_height", "Threshold height for precipitation," "km", m_precip_thresh_height);
+  m_precip_thresh_height = options::Real("-precip_thresh_height", 
+                                         "Threshold height for precipitation," 
+                                         "km", 
+                                         m_precip_thresh_height);
   m_precip_thresh_height = units::convert(m_sys, m_precip_thresh_height, "km", "m");
 
   init_data();
-  
+
   m_surface = m_grid->variables().get_2d_scalar("surface_altitude");
-  
 }
 
 void IndexForcing::init_data() {
-  
    m_log->message(2,
                   "  initializing %s, %s, %s and %s from forcing file %s...\n",
                   m_T0.get_name().c_str(), 
                   m_T1.get_name().c_str(),
                   m_P0.get_name().c_str(), 
                   m_P1.get_name().c_str(), 
-                  m_climate_file.c_str()); 
-   
-  m_T0.init(m_climate_file, 1, 0.0);
-  m_T1.init(m_climate_file, 1, 0.0);
-  m_P0.init(m_climate_file, 1, 0.0);
-  m_P1.init(m_climate_file, 1, 0.0);
-  
+                  m_file.c_str()); 
+
+  m_T0.init(m_file, 1, 0.0);
+  m_T1.init(m_file, 1, 0.0);
+  m_P0.init(m_file, 1, 0.0);
+  m_P1.init(m_file, 1, 0.0);
+
   m_log->message(2,
                  "  reading %s data from forcing file %s...\n",
                  m_index->name().c_str(), 
-                 m_index_file.c_str());
+                 m_file.c_str());
 
-  PIO nc(m_grid->com, "netcdf3", m_index_file, PISM_READONLY);
+  PIO nc(m_grid->com, "netcdf3", m_file, PISM_READONLY);
   {
     m_index->read(nc, *m_grid->ctx()->time(), *m_grid->ctx()->log());
   }
@@ -196,10 +184,10 @@ void IndexForcing::init_data() {
     
   m_log->message(2,
                  "  reading surface elevation at t0 & t1 data from forcing file %s...\n",
-                 m_climate_file.c_str());
+                 m_file.c_str());
   
-  m_h0.read(m_climate_file, 0); // fails if not found!
-  m_h1.read(m_climate_file, 0);
+  m_h0.read(m_file, 0); // fails if not found!
+  m_h1.read(m_file, 0);
 
 }
 
@@ -247,23 +235,18 @@ void IndexForcing::mean_precipitation_impl(IceModelVec2S& result) const {
 }
 
 void IndexForcing::update_impl(double my_t, double my_dt) {
-
   m_t  = my_t;
   m_dt = my_dt;
- 
+
   m_t_index = m_grid->ctx()->time()->mod(my_t - m_reference_time, m_period);
-  
+
   double index = (*m_index)(m_t_index);
-  
-  m_T0.update(m_t, m_dt);
+
   m_T0.average(m_t, m_dt);
-  m_T1.update(m_t, m_dt);
   m_T1.average(m_t, m_dt);
-  m_P0.update(m_t, m_dt);
   m_P0.average(m_t, m_dt);
-  m_P1.update(m_t, m_dt);
   m_P1.average(m_t, m_dt);
-  
+
   IceModelVec::AccessList list;
   list.add(m_air_temp);
   list.add(m_precipitation);
@@ -274,14 +257,13 @@ void IndexForcing::update_impl(double my_t, double my_dt) {
   list.add(m_P1);
   list.add(m_h0);
   list.add(m_h1);
-  
+
   for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();
 
     m_air_temp(i, j) = compute_T_ij(m_T0(i, j), m_T1(i, j), m_h0(i, j), m_h1(i, j), (*m_surface)(i, j), index);
     m_precipitation(i, j) = compute_P_ij(m_P0(i, j), m_P1(i, j), m_h0(i, j), m_h1(i, j), (*m_surface)(i, j), index);
   }
-  
 }
 
 void IndexForcing::define_model_state_impl(const PIO &output) const {
@@ -361,7 +343,6 @@ double IndexForcing::applyLapseRateP(double P, double h_ref, double h) const {
   double result = P * exp(-1.0 * m_precip_decay_rate * std::max(0.0, (h - m_precip_thresh_height)));
   return(result);
 }
-
 
 } // end of namespace atmosphere
 } // end of namespace pism
