@@ -17,25 +17,39 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <mpi.h>
-#include <netcdf.h>
-#include <fftw3.h>
-#include <gsl/gsl_version.h>
-#if (PISM_USE_PROJ4==1)
-#include "pism/util/Proj.hh"
-#endif
-
-#ifdef PISM_USE_JANSSON
-#include <jansson.h>
-#endif
-
 #include "pism_utilities.hh"
-#include "pism_const.hh"
-#include "error_handling.hh"
 
 #include <sstream>
 
+#include <mpi.h>                // MPI_Get_library_version
+#include <fftw3.h>              // fftw_version
+#include <gsl/gsl_version.h>
+
+// The following is a stupid kludge necessary to make NetCDF 4.x work in
+// serial mode in an MPI program:
+#ifndef MPI_INCLUDED
+#define MPI_INCLUDED 1
+#endif
+#include <netcdf.h>             // nc_inq_libvers
+
+
+#if (PISM_USE_PROJ4==1)
+#include "pism/util/Proj.hh"    // pj_release
+#endif
+
+#ifdef PISM_USE_JANSSON
+#include <jansson.h>            // JANSSON_VERSION
+#endif
+
+#include <petsctime.h>          // PetscTime
+
+#include "error_handling.hh"
+
 namespace pism {
+
+const char *PISM_DefaultConfigFile = PISM_DEFAULT_CONFIG_FILE;
+
+const char *PISM_Revision = PISM_REVISION;
 
 //! Returns true if `str` ends with `suffix` and false otherwise.
 bool ends_with(const std::string &str, const std::string &suffix) {
@@ -181,8 +195,15 @@ std::string version() {
            PISM_PETSC_CONFIGURE_FLAGS);
   result += buffer;
 
+  // OpenMPI added MPI_Get_library_version in version 1.7 (relatively recently).
+#ifdef OPEN_MPI
+  snprintf(buffer, TEMPORARY_STRING_LENGTH, "OpenMPI %d.%d.%d\n",
+           OMPI_MAJOR_VERSION, OMPI_MINOR_VERSION, OMPI_RELEASE_VERSION);
+#else
+  // Assume that other MPI libraries implement this part of the MPI-3 standard...
   int string_length = TEMPORARY_STRING_LENGTH;
   MPI_Get_library_version(buffer, &string_length);
+#endif
   result += buffer;
 
   snprintf(buffer, sizeof(buffer), "NetCDF %s.\n", nc_inq_libvers());
@@ -228,7 +249,7 @@ double wall_clock_hours(MPI_Comm com, double start_time) {
   ParallelSection rank0(com);
   try {
     if (rank == 0) {
-      result = (GetTime() - start_time) / 3600.0;
+      result = (get_time() - start_time) / 3600.0;
     }
   } catch (...) {
     rank0.failed();
@@ -345,5 +366,10 @@ std::string filename_add_suffix(const std::string &filename,
   return result;
 }
 
+double get_time() {
+  PetscLogDouble result;
+  PetscErrorCode ierr = PetscTime(&result); PISM_CHK(ierr, "PetscTime");
+  return result;
+}
 
 } // end of namespace pism

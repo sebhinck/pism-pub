@@ -18,7 +18,7 @@ def disc(thickness, x0, y0, H0, R_inner, R_outer):
 
     """
 
-    grid = thickness.get_grid()
+    grid = thickness.grid()
 
     R_inner_2 = R_inner**2
     R_outer_2 = R_outer**2
@@ -44,7 +44,7 @@ def set_velocity(scalar_velocity, v):
     origin. This is slow, but it works.
 
     """
-    grid = v.get_grid()
+    grid = v.grid()
 
     with PISM.vec.Access(nocomm=v):
         for (i, j) in grid.points():
@@ -89,12 +89,6 @@ def run(Mx, My, t_final, part_grid, C=1.0):
     H_bc_mask = PISM.IceModelVec2Int()
     H_bc_mask.create(grid, "H_bc_mask", PISM.WITHOUT_GHOSTS)
 
-    SMB = PISM.IceModelVec2S()
-    SMB.create(grid, "SMB", PISM.WITHOUT_GHOSTS)
-
-    BMR = PISM.IceModelVec2S()
-    BMR.create(grid, "BMR", PISM.WITHOUT_GHOSTS)
-
     ge = PISM.GeometryEvolution(grid)
 
     # grid info
@@ -113,8 +107,6 @@ def run(Mx, My, t_final, part_grid, C=1.0):
     set_velocity(spreading_velocity, v)
     v_bc_mask.set(0.0)
     disc(H_bc_mask, 0, 0, 1, R_inner, R_inner)
-    SMB.set(0.0)
-    BMR.set(0.0)
 
     profiling = ctx.profiling()
     profiling.start()
@@ -133,13 +125,11 @@ def run(Mx, My, t_final, part_grid, C=1.0):
         log.message(2, "{}, {}\n".format(t, dt))
 
         profiling.begin("step")
-        ge.step(geometry, dt,
-                v,
-                Q,
-                v_bc_mask,
-                H_bc_mask,
-                SMB,
-                BMR)
+        ge.flow_step(geometry, dt,
+                     v,
+                     Q,
+                     v_bc_mask,
+                     H_bc_mask)
         profiling.end("step")
 
         profiling.begin("modify")
@@ -167,7 +157,7 @@ def average_error(N):
     # combine stuff stored as thickness and as area specific volume
     geometry.ice_thickness.add(1.0, geometry.ice_area_specific_volume)
 
-    grid = geometry.ice_thickness.get_grid()
+    grid = geometry.ice_thickness.grid()
 
     diff = PISM.IceModelVec2S()
     diff.create(grid, "difference", PISM.WITHOUT_GHOSTS)
@@ -206,7 +196,7 @@ def part_grid_symmetry_test():
     # combine stuff stored as thickness and as area specific volume
     geometry.ice_thickness.add(1.0, geometry.ice_area_specific_volume)
 
-    grid = geometry.ice_thickness.get_grid()
+    grid = geometry.ice_thickness.grid()
 
     p0 = PISM.vec.ToProcZero(grid)
 

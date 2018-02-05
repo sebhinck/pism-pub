@@ -17,7 +17,7 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "FlowLaw.hh"
-#include "pism/util/pism_const.hh"
+#include "pism/util/pism_utilities.hh"
 #include "pism/util/EnthalpyConverter.hh"
 #include "pism/util/pism_options.hh"
 #include "pism/util/iceModelVec.hh"
@@ -187,7 +187,7 @@ void averaged_hardness_vec(const FlowLaw &ice,
                            const IceModelVec3  &enthalpy,
                            IceModelVec2S &result) {
 
-  const IceGrid &grid = *thickness.get_grid();
+  const IceGrid &grid = *thickness.grid();
 
   IceModelVec::AccessList list{&thickness, &result, &enthalpy};
 

@@ -110,7 +110,7 @@ SSA::SSA(IceGrid::ConstPtr g)
 
   m_velocity_global.create(m_grid, "bar", WITHOUT_GHOSTS);
 
-  m_da = m_velocity_global.get_dm();
+  m_da = m_velocity_global.dm();
 
   {
     rheology::FlowLawFactory ice_factory("stress_balance.ssa.", m_config, m_EC);
@@ -380,8 +380,6 @@ std::map<std::string, Diagnostic::Ptr> SSA::diagnostics_impl() const {
 SSA_taud::SSA_taud(const SSA *m)
   : Diag<SSA>(m) {
 
-  m_dof = 2;
-
   // set metadata:
   m_vars = {SpatialVariableMetadata(m_sys, "taud_x"),
             SpatialVariableMetadata(m_sys, "taud_y")};
@@ -391,9 +389,9 @@ SSA_taud::SSA_taud(const SSA *m)
   set_attrs("Y-component of the driving shear stress at the base of ice", "",
             "Pa", "Pa", 1);
 
-  for (unsigned int k = 0; k < m_dof; ++k) {
-    m_vars[k].set_string("comment",
-                       "this is the driving stress used by the SSA solver");
+  for (auto &v : m_vars) {
+    v.set_string("comment",
+                 "this is the driving stress used by the SSA solver");
   }
 }
 
