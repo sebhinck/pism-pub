@@ -18,9 +18,16 @@
  */
 
 #include <mpi.h>
-#include <netcdf.h>
 #include <fftw3.h>
 #include <gsl/gsl_version.h>
+
+// The following is a stupid kludge necessary to make NetCDF 4.x work in
+// serial mode in an MPI program:
+#ifndef MPI_INCLUDED
+#define MPI_INCLUDED 1
+#endif
+#include <netcdf.h>
+
 #if (PISM_USE_PROJ4==1)
 #include "pism/util/Proj.hh"
 #endif
@@ -181,8 +188,15 @@ std::string version() {
            PISM_PETSC_CONFIGURE_FLAGS);
   result += buffer;
 
+  // OpenMPI added MPI_Get_library_version in version 1.7 (relatively recently).
+#ifdef OPEN_MPI
+  snprintf(buffer, TEMPORARY_STRING_LENGTH, "OpenMPI %d.%d.%d\n",
+           OMPI_MAJOR_VERSION, OMPI_MINOR_VERSION, OMPI_RELEASE_VERSION);
+#else
+  // Assume that other MPI libraries implement this part of the MPI-3 standard...
   int string_length = TEMPORARY_STRING_LENGTH;
   MPI_Get_library_version(buffer, &string_length);
+#endif
   result += buffer;
 
   snprintf(buffer, sizeof(buffer), "NetCDF %s.\n", nc_inq_libvers());
