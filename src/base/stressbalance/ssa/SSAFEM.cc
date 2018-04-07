@@ -1,4 +1,4 @@
-// Copyright (C) 2009--2016 Jed Brown and Ed Bueler and Constantine Khroulev and David Maxwell
+// Copyright (C) 2009--2016, 2018 Jed Brown and Ed Bueler and Constantine Khroulev and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -714,7 +714,7 @@ void SSAFEM::cache_residual_cfbc() {
 
         } // loop over element sides
 
-        m_element.add_residual_contribution(&I[0], m_boundary_integral);
+        m_element.add_contribution(&I[0], m_boundary_integral);
 
       } // i-loop
     } // j-loop
@@ -878,7 +878,7 @@ void SSAFEM::compute_local_function(Vector2 const *const *const velocity_global,
           } // k (test functions)
         }   // q (quadrature points)
 
-        m_element.add_residual_contribution(residual, residual_global);
+        m_element.add_contribution(residual, residual_global);
       } // j-loop
     } // i-loop
   } catch (...) {
@@ -1111,7 +1111,7 @@ void SSAFEM::compute_local_jacobian(Vector2 const *const *const velocity_global,
             } // l
           } // k
         } // q
-        m_element.add_jacobian_contribution(&K[0][0], Jac);
+        m_element.add_contribution(&K[0][0], Jac);
       } // j
     } // i
   } catch (...) {
