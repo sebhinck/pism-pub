@@ -1,4 +1,4 @@
-// Copyright (C) 2010-2016 Jed Brown, Ed Bueler and Constantine Khroulev
+// Copyright (C) 2010-2016, 2018 Jed Brown, Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -21,7 +21,7 @@
 
 #include "base/stressbalance/ShallowStressBalance.hh"
 #include "base/util/IceGrid.hh"
-#include "base/util/IceModelVec3Custom.hh"
+#include "base/util/iceModelVec3Custom.hh"
 
 #include "base/util/petscwrappers/DM.hh"
 #include "base/util/petscwrappers/SNES.hh"

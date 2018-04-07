@@ -1,4 +1,4 @@
-// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016 Constantine Khroulev
+// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2018 Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -31,7 +31,7 @@
 #include "base/util/PISMVars.hh"
 #include "base/util/pism_utilities.hh"
 #include "coupler/PISMOcean.hh"
-#include "earth/PISMbedDef.hh"
+#include "earth/PISMBedDef.hh"
 
 #include "base/grounded_cell_fraction.hh"
 #include "base/part_grid_threshold_thickness.hh"
