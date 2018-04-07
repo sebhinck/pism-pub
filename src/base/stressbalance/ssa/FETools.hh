@@ -1,4 +1,4 @@
-// Copyright (C) 2009--2011, 2013, 2014, 2015, 2016 Jed Brown nd Ed Bueler and Constantine Khroulev and David Maxwell
+// Copyright (C) 2009--2011, 2013, 2014, 2015, 2016, 2018 Jed Brown nd Ed Bueler and Constantine Khroulev and David Maxwell
 //
 // This file is part of PISM.
 //
@@ -76,36 +76,41 @@ static const unsigned int MAX_QUADRATURE_SIZE = 9;
   0 o---------o 1
   ~~~
 
-  For each vertex \f$k\f$ there is an element basis function \f$\phi_k\f$ that is bilinear, equals 1 at
+  For each vertex \f$k\in\{0,1,2,3\}\f$ there is an element basis function \f$\phi_k\f$ that is bilinear, equals 1 at
   vertex \f$k\f$, and equals 0 at the remaining vertices.
 
-  For each node \f$(i',j')\f$ in the physical domain there is a basis function that equals 1 at
-  vertex \f$(i',j')\f$, equals zero at all other vertices, and that on element \f$(i,j)\f$
-  can be written as \f$\phi_k\circ F_{i,j}^{-1}\f$ for some index \f$k\f$.
-
-  A (scalar) finite element function \f$f\f$ on the domain is then a linear combination
+  For each node \f$(i,j)\f$ in the physical domain there is a basis function \f$\psi_{ij}\f$ that equals 1 at
+  vertex \f$(i,j)\f$, and equals zero at all other vertices, and that on element \f$E_{i'j'}\f$
+  can be written as \f$\phi_k\circ F_{i',j'}^{-1}\f$ for some index \f$k\f$:
   \f[
-  f_h = \sum_{i,j} c_{ij}\psi_{ij}.
+  \psi_{ij}\Big|_{E_{i'j'}} = \phi_k\circ F_{i',j'}^{-1}.
   \f]
 
-  Let \f$G(w,\psi)\f$ denote the weak form of the PDE under consideration. For example, for the
+  The hat functions \f$\psi_{ij}\f$ form a basis of the function space of piecewise-linear functions.
+  A (scalar) piecewise-linear function \f$v=v(x,y)\f$ on the domain is a linear combination
+  \f[
+  v = \sum_{i,j} c_{ij}\psi_{ij}.
+  \f]
+
+  Let \f$G(w,v)\f$ denote the weak form of the PDE under consideration. For example, for the
   scalar Poisson equation \f$-\Delta w = f\f$,
-
   \f[
-  G(w,\psi) = \int_\Omega \nabla w \cdot \nabla \psi -f\psi\;dx.
+  G(w,v) = \int_\Omega \nabla w \cdot \nabla v -f v \;dx.
   \f]
+  The SSA weak form is more complicated, in particular because there is dimension 2 at each vertex,
+  corresponding to x- and y-velocity components, but it is in many ways like the Poisson weak form.
 
-  In the continuous problem we seek to find a trial function \f$w\f$ such that \f$G(w,\psi)=0\f$ for
-  all suitable test functions \f$\psi\f$. In the discrete problem, we seek a finite element function
+  In the continuous problem we seek to find a trial function \f$w\f$ such that \f$G(w,v)=0\f$ for
+  all suitable test functions \f$v\f$.
+
+  In the discrete problem, we seek a finite element function
   \f$w_h\f$ such that \f$G(w_h,\psi_{ij})=0\f$ for all suitable indices \f$(i,j)\f$. For realistic
-  problems, the integral given by \f$G\f$ cannot be evaluated exactly, but is approximated with some
+  problems, the integral defining \f$G\f$ cannot be evaluated exactly, but is approximated with some
   \f$G_h\f$ that arises from numerical quadrature rule: integration on an element \f$E\f$ is
   approximated with
-
   \f[
-  \int_E f dx \approx \sum_{q} f(x_q) w_q
+  \int_E f dx \approx \sum_{q} f(x_q) j_q
   \f]
-
   for certain points \f$x_q\f$ and weights \f$j_q\f$ (specific details are found in Quadrature).
 
   The unknown \f$w_h\f$ is represented by an IceVec, \f$w_h=\sum_{ij} c_{ij} \psi_{ij}\f$ where
@@ -135,9 +140,9 @@ static const unsigned int MAX_QUADRATURE_SIZE = 9;
   - Evaluate the local test functions (again values and derivatives) at the quadrature points.
     (Quadrature)
 
-  - Obtain the quadrature weights $j_q$ for the element (Quadrature)
+  - Obtain the quadrature weights \f$j_q\f$ for the element (Quadrature)
 
-  - Compute the values of the integrand \f$g(\hat w_h,\psi_k)\f$ at each quadrature point (call
+  - Compute the values of the integrand \f$G(\hat w_h,\psi_k)\f$ at each quadrature point (call
     these \f$g_{qk}\f$) and form the weighted sums \f$y_k=\sum_{q} j_q g_{qk}\f$.
 
   - Each sum \f$y_k\f$ is the contribution of the current element to a residual entry \f$r_{ij}\f$,
@@ -156,7 +161,7 @@ static const unsigned int MAX_QUADRATURE_SIZE = 9;
 
   The classes in this module are not intended to be a fancy finite element package. Their purpose is
   to clarify the steps that occur in the computation of residuals and Jacobians in SSAFEM, and to
-  isolate and consolodate the hard steps so that they are not scattered about the code.
+  isolate and consolidate the hard steps so that they are not scattered about the code.
 */
 
 //! Struct for gathering the value and derivative of a function at a point.
@@ -176,6 +181,15 @@ struct QuadPoint {
   double xi;
   double eta;
 };
+
+//! Q0 element information.
+// FIXME: not sure if Q0 is the right notation here.
+namespace q0 {
+//! Number of shape functions on a Q0 element.
+const int n_chi = 4;
+//! Evaluate a piecewise-constant shape function and its derivatives.
+Germ chi(unsigned int k, const QuadPoint &p);
+} // end of namespace q0
 
 class ElementGeometry {
 public:
@@ -283,7 +297,7 @@ typedef Germ Germs[q1::n_chi];
   are q1::n_chi (%i.e. four) scalars or vectors, one for each vertex of the element.
 
   The ElementMap is also (perhaps awkwardly) overloaded to mediate transfering locally computed
-  contributions to residual and Jacobian matricies to their global counterparts.
+  contributions to residual and Jacobian matrices to their global counterparts.
 
   See also: \link FETools.hh FiniteElement/IceGrid background material\endlink.
 */
@@ -319,11 +333,13 @@ public:
   /*! @brief Get nodal values of an integer mask. */
   void nodal_values(const IceModelVec2Int &x_global, int *result) const;
 
-  /*! @brief Add the values of element-local residual contributions `y` to the global residual
-    vector `y_global`. */
-  /*! The element-local residual should be an array of Nk values.*/
+  /*! @brief Add the values of element-local contributions `y` to the global vector `y_global`. */
+  /*! The element-local array `local` should be an array of Nk values.
+   *
+   * Use this to add residual contributions.
+   */
   template<typename T>
-  void add_residual_contribution(const T *residual, T** y_global) const {
+  void add_contribution(const T *local, T** y_global) const {
     for (unsigned int k = 0; k < fem::q1::n_chi; k++) {
       if (m_row[k].k == 1) {
         // skip rows marked as "invalid"
@@ -332,12 +348,12 @@ public:
       const int
         i = m_row[k].i,
         j = m_row[k].j;
-      y_global[j][i] += residual[k];   // note the indexing order
+      y_global[j][i] += local[k];   // note the indexing order
     }
   }
 
   template<class C, typename T>
-  void add_residual_contribution(const T *residual, C& y_global) const {
+  void add_contribution(const T *local, C& y_global) const {
     for (unsigned int k = 0; k < fem::q1::n_chi; k++) {
       if (m_row[k].k == 1) {
         // skip rows marked as "invalid"
@@ -346,7 +362,7 @@ public:
       const int
         i = m_row[k].i,
         j = m_row[k].j;
-      y_global(i, j) += residual[k];   // note the indexing order
+      y_global(i, j) += local[k];   // note the indexing order
     }
   }
 
@@ -361,7 +377,8 @@ public:
     j = m_j + m_j_offset[k];
   }
 
-  void add_jacobian_contribution(const double *K, Mat J) const;
+  /*! @brief Add Jacobian contributions. */
+  void add_contribution(const double *K, Mat J) const;
 
 private:
   //! Constant for marking invalid row/columns.
@@ -472,6 +489,10 @@ public:
   const double* weights() const {
     return m_W;
   }
+
+  Germ test_function_values(unsigned int q, unsigned int k) const;
+  double weights(unsigned int q) const;
+
 protected:
   //! Number of quadrature points.
   const unsigned int m_Nq;
@@ -498,9 +519,9 @@ protected:
   physical element and its inverse, which are used to convert partial derivatives with respect to
   xi, eta to partial derivatives with respect to x and y.
  */
-class Q1Quadrature : public Quadrature {
+class UniformQxQuadrature : public Quadrature {
 protected:
-  Q1Quadrature(unsigned int size, double dx, double dy, double L);
+  UniformQxQuadrature(unsigned int size, double dx, double dy, double L);
 };
 
 //! Numerical integration of finite element functions.
@@ -540,7 +561,7 @@ protected:
 
   See also: \link FETools.hh FiniteElement/IceGrid background material\endlink.
 */
-class Q1Quadrature4 : public Q1Quadrature {
+class Q1Quadrature4 : public UniformQxQuadrature {
 public:
   Q1Quadrature4(double dx, double dy, double L=1.0);
 private:
@@ -548,7 +569,7 @@ private:
 };
 
 //! The 9-point 2D Gaussian quadrature on the square [-1,1]*[-1,1].
-class Q1Quadrature9 : public Q1Quadrature {
+class Q1Quadrature9 : public UniformQxQuadrature {
 public:
   Q1Quadrature9(double dx, double dy, double L=1.0);
 private:
@@ -556,11 +577,27 @@ private:
 };
 
 //! The 16-point 2D Gaussian quadrature on the square [-1,1]*[-1,1].
-class Q1Quadrature16 : public Q1Quadrature {
+class Q1Quadrature16 : public UniformQxQuadrature {
 public:
   Q1Quadrature16(double dx, double dy, double L=1.0);
 private:
   static const unsigned int m_size = 16;
+};
+
+class Q0Quadrature1e4 : public UniformQxQuadrature {
+public:
+  Q0Quadrature1e4(double dx, double dy, double L=1.0);
+private:
+  static const unsigned int m_size_1d = 100;
+  static const unsigned int m_size = m_size_1d * m_size_1d;
+};
+
+class Q1Quadrature1e4 : public UniformQxQuadrature {
+public:
+  Q1Quadrature1e4(double dx, double dy, double L=1.0);
+private:
+  static const unsigned int m_size_1d = 100;
+  static const unsigned int m_size = m_size_1d * m_size_1d;
 };
 
 //! Quadratures on a P1 element.
