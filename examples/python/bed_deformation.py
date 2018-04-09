@@ -28,7 +28,7 @@ R0 = 1000e3
 
 def initialize_uplift(uplift):
     "Initialize the uplift field."
-    grid = uplift.get_grid()
+    grid = uplift.grid()
     peak_uplift = PISM.convert(ctx.unit_system, 10, "mm/year", "m/second")
     with PISM.vec.Access(nocomm=[uplift]):
         for (i, j) in grid.points():
@@ -39,7 +39,7 @@ def initialize_uplift(uplift):
                 uplift[i, j] = 0.0
 
 def initialize_thickness(thickness, H0):
-    grid = thickness.get_grid()
+    grid = thickness.grid()
     with PISM.vec.Access(nocomm=[thickness]):
         for (i, j) in grid.points():
             r = PISM.radius(grid, i, j)
@@ -103,9 +103,9 @@ def run(scenario, plot, pause, save):
 
     time.init(ctx.ctx.log())
 
-    model = PISM.PBLingleClark(grid)
+    model = PISM.LingleClark(grid)
 
-    model.init(bed, uplift, thickness)
+    model.bootstrap(bed, uplift, thickness)
 
     # now add the disc load
     initialize_thickness(thickness, H0)

@@ -1,4 +1,4 @@
-// Copyright (C) 2012,2013,2014,2015,2016  David Maxwell and Constantine Khroulev
+// Copyright (C) 2012,2013,2014,2015,2016,2017  David Maxwell and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -16,18 +16,16 @@
 // along with PISM; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-
 #ifndef IPTAOTIKHONOVPROBLEM_HH_4NMM724B
 #define IPTAOTIKHONOVPROBLEM_HH_4NMM724B
 
-#include <cassert>
+#include <memory>
 
-#include "base/util/pism_memory.hh"
 #include "TaoUtil.hh"
 #include "functional/IPFunctional.hh"
-#include "base/util/PISMConfigInterface.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/Logger.hh"
+#include "pism/util/ConfigInterface.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/Logger.hh"
 
 namespace pism {
 namespace inverse {
@@ -47,7 +45,7 @@ template<class ForwardProblem> class IPTaoTikhonovProblem;
  */
 template<class ForwardProblem> class IPTaoTikhonovProblemListener {
 public:
-  typedef PISM_SHARED_PTR(IPTaoTikhonovProblemListener) Ptr;
+  typedef std::shared_ptr<IPTaoTikhonovProblemListener> Ptr;
 
 
   typedef typename ForwardProblem::DesignVec::Ptr DesignVecPtr;
@@ -228,7 +226,7 @@ public:
   //! Callback from TaoBasicSolver to form the starting iterate for the minimization.  See also
   //  setInitialGuess.
   virtual TerminationReason::Ptr formInitialGuess(Vec *v) {
-    *v = m_dGlobal.get_vec();
+    *v = m_dGlobal.vec();
     return GenericTerminationReason::success();
   }
 
@@ -302,13 +300,13 @@ IPTaoTikhonovProblem<ForwardProblem>::IPTaoTikhonovProblem(ForwardProblem &forwa
   : m_forward(forward), m_d0(d0), m_u_obs(u_obs), m_eta(eta),
     m_designFunctional(designFunctional), m_stateFunctional(stateFunctional) {
 
-  m_grid = m_d0.get_grid();
+  m_grid = m_d0.grid();
 
   m_tikhonov_atol = m_grid->ctx()->config()->get_double("inverse.tikhonov.atol");
   m_tikhonov_rtol = m_grid->ctx()->config()->get_double("inverse.tikhonov.rtol");
 
-  int design_stencil_width = m_d0.get_stencil_width();
-  int state_stencil_width = m_u_obs.get_stencil_width();
+  int design_stencil_width = m_d0.stencil_width();
+  int state_stencil_width = m_u_obs.stencil_width();
 
   m_d.reset(new DesignVec);
   m_d->create(m_grid, "design variable", WITH_GHOSTS, design_stencil_width);
@@ -435,7 +433,7 @@ void IPTaoTikhonovProblem<ForwardProblem>::evaluateObjectiveAndGradient(Tao tao,
   m_grad->scale(1.0 / m_eta);
   m_grad->add(1, *m_grad_state);
 
-  ierr = VecCopy(m_grad->get_vec(), gradient);
+  ierr = VecCopy(m_grad->vec(), gradient);
   PISM_CHK(ierr, "VecCopy");
 
   double valDesign, valState;

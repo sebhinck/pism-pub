@@ -58,11 +58,8 @@ these classes*. (This is a summary.)
 
 ### Other useful pages
 
-The [Related Pages tab](pages.html) links to some
-overview pages for PISM usage and design.  You will find
-- [table of standard names used by PISM](@ref std_names),
-- [table of configuration parameters for PISM](@ref config),
-- ['how do I?' page for developers](@ref howto),
+The [Related Pages tab](pages.html) links to some overview pages for
+PISM usage and design. You will find
 - [list of References](@ref references), and other helpful material.
 
 This doxygen source *Browser* can be regenerated in any source code release.
@@ -75,7 +72,7 @@ Just do `"make browser"` in the build directory and look in
   *root* for all PISM information.
 
 - You can *get help,* send comments, or ask for new features by email to
-  help@pism-docs.org.
+  uaf-pism@alaska.edu.
 
 - To *download* the PISM source code see https://github.com/pism/pism.
   Use of [Git](http://git-scm.com/) to download is strongly
@@ -90,7 +87,7 @@ Just do `"make browser"` in the build directory and look in
   should suffice for understanding PISM unless one wants to modify it
   or couple another model to it.
 
-> Copyright (C) 2008-2015 the PISM authors.
+> Copyright (C) 2008-2017 the PISM authors.
 
 > This document is part of PISM. PISM is free software; you can redistribute it
 > and/or modify it under the terms of the GNU General Public License as published

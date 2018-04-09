@@ -1,13 +1,11 @@
 #! /usr/bin/env python
 #
 
-import sys
-import petsc4py
-petsc4py.init(sys.argv)
-from petsc4py import PETSc
-
 import PISM
-import math
+
+PISM.set_abort_on_sigint(True)
+context = PISM.Context()
+config = PISM.Context().config
 
 # Default constants that  may get overridden later.
 
@@ -18,7 +16,6 @@ My = 13
 Mx = 23
 Mz = 21
 
-sea_level = 0      # m sea level elevation
 H0 = 60.           # ice thickness at cliff
 alpha = 0.008       # constant surface slope
 Lext = 15e3          # width of strip beyond cliff
@@ -29,7 +26,7 @@ Hext = 0.    # m ice thickeness beyond the cliff
 
 tauc_hi = 2e6       # Pa
 tauc_lo = 1e4       # Pa
-tauc_free_bedrock = 0  # Will get set later
+tauc_free_bedrock = config.get_double('basal_yield_stress.ice_free_bedrock')
 
 EC = PISM.EnthalpyConverter(PISM.Context().config)
 enth0 = EC.enthalpy(273.15, 0.01, 0)  # 0.01 water fraction
@@ -55,8 +52,6 @@ def stream_tauc(x, y):
 
 # The main code for a run follows:
 if __name__ == '__main__':
-    PISM.set_abort_on_sigint(True)
-    context = PISM.Context()
 
     Mx = PISM.optionsInt("-Mx", "Number of grid points in x-direction", default=Mx)
     My = PISM.optionsInt("-My", "Number of grid points in y-direction", default=My)
@@ -64,8 +59,6 @@ if __name__ == '__main__':
     verbosity = PISM.optionsInt("-verbose", "verbosity level", default=3)
 
     # Build the grid.
-    config = PISM.Context().config
-
     p = PISM.GridParameters(config)
     p.Mx = Mx
     p.My = My
@@ -74,6 +67,7 @@ if __name__ == '__main__':
     z = PISM.IceGrid.compute_vertical_levels(Lz, Mz, PISM.EQUAL, 4.0)
     p.z = PISM.DoubleVector(z)
     p.ownership_ranges_from_options(context.size)
+    p.registration = PISM.CELL_CORNER
     p.periodicity = PISM.NOT_PERIODIC
     grid = PISM.IceGrid(context.ctx, p)
 
@@ -86,6 +80,7 @@ if __name__ == '__main__':
     vecs.add(PISM.model.createIceMaskVec(grid))
     vecs.add(PISM.model.createNoModelMaskVec(grid), 'no_model_mask')
     vecs.add(PISM.model.create2dVelocityVec(grid,  name='_ssa_bc', desc='SSA Dirichlet BC'))
+    vecs.add(PISM.model.createSeaLevelVec(grid))
 
     # Set constant coefficients.
     vecs.enthalpy.set(enth0)
@@ -93,23 +88,23 @@ if __name__ == '__main__':
     # Build the continent
     bed = vecs.bedrock_altitude
     thickness = vecs.land_ice_thickness
+    sea_level = vecs.sea_level
 
-    with PISM.vec.Access(comm=[bed, thickness]):
+    with PISM.vec.Access(comm=[bed, thickness, sea_level]):
         for (i, j) in grid.points():
             x = grid.x(i)
             y = grid.y(j)
             (b, t) = geometry(x, y)
             bed[i, j] = b
             thickness[i, j] = t
+            sea_level[i, j] = 0.0
 
     # Compute mask and surface elevation from geometry variables.
     gc = PISM.GeometryCalculator(grid.ctx().config())
     gc.compute(sea_level, bed, thickness, vecs.mask, vecs.surface_altitude)
 
     tauc = vecs.tauc
-    mask = vecs.mask
-    tauc_free_bedrock = config.get_double('basal_yield_stress.ice_free_bedrock')
-    with PISM.vec.Access(comm=tauc, nocomm=mask):
+    with PISM.vec.Access(comm=tauc):
         for (i, j) in grid.points():
             tauc[i, j] = stream_tauc(grid.x(i), grid.y(j))
 

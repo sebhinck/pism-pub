@@ -1,4 +1,4 @@
-// Copyright (C) 2010-2016 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2010-2016, 2018 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -17,18 +17,16 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "BlatterStressBalance.hh"
-#include "coupler/PISMOcean.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/PISMVars.hh"
-#include "base/basalstrength/basal_resistance.hh"
+#include "pism/coupler/OceanModel.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/Vars.hh"
+#include "pism/basalstrength/basal_resistance.hh"
 #include "FE3DTools.h"
-#include "base/enthalpyConverter.hh"
-#include "base/rheology/FlowLaw.hh"
-#include "base/rheology/FlowLawFactory.hh"
-#include "base/util/PISMVars.hh"
-#include "base/util/error_handling.hh"
-#include "base/util/pism_const.hh"
-#include "base/util/pism_utilities.hh"
+#include "pism/util/EnthalpyConverter.hh"
+#include "pism/rheology/FlowLaw.hh"
+#include "pism/rheology/FlowLawFactory.hh"
+#include "pism/util/error_handling.hh"
+#include "pism/util/pism_utilities.hh"
 
 namespace pism {
 namespace stressbalance {
@@ -142,13 +140,11 @@ BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g)
   m_u.set_attrs("diagnostic", "horizontal velocity of ice in the X direction",
               "m s-1", "land_ice_x_velocity");
   m_u.metadata().set_string("glaciological_units", "m year-1");
-  m_u.write_in_glaciological_units = true;
 
   m_v.create(grid(), "vvel", WITH_GHOSTS);
   m_v.set_attrs("diagnostic", "horizontal velocity of ice in the Y direction",
               "m s-1", "land_ice_y_velocity");
   m_v.metadata().set_string("glaciological_units", "m year-1");
-  m_v.write_in_glaciological_units = true;
 
   // strain_heating
   m_strain_heating.create(grid(), "strainheat", WITHOUT_GHOSTS); // never diff'ed in hor dirs
@@ -176,14 +172,12 @@ BlatterStressBalance::BlatterStressBalance(IceGrid::ConstPtr g)
                     "horizontal velocity of ice in the X direction on the sigma vertical grid",
                     "m s-1", "");
   m_u_sigma.metadata().set_string("glaciological_units", "m year-1");
-  m_u_sigma.write_in_glaciological_units = false;
 
   m_v_sigma.create(grid(), "vvel_sigma", "z_sigma", sigma, z_attrs);
   m_v_sigma.set_attrs("diagnostic",
                     "horizontal velocity of ice in the Y direction on the sigma vertical grid",
                     "m s-1", "");
   m_v_sigma.metadata().set_string("glaciological_units", "m year-1");
-  m_v_sigma.write_in_glaciological_units = false;
 
   {
     rheology::FlowLawFactory ice_factory("stress_balance.blatter.", config, m_EC);
@@ -211,16 +205,12 @@ void BlatterStressBalance::init_impl() {
   m_enthalpy = vars.get_3d_scalar("enthalpy");
 }
 
-void BlatterStressBalance::update(bool fast,
-                                  double sea_level,
-                                  const IceModelVec2S &melange_back_pressure) {
+void BlatterStressBalance::update(const Inputs &inputs, bool full_update) {
+  (void) inputs;
 
-  (void) melange_back_pressure;
-  (void) sea_level;
-
-  if (fast) {
+  if (not full_update) {
     throw RuntimeError(PISM_ERROR_LOCATION,
-                       "'fast' mode not meaningful for BlatterStressBalance");
+                       "'full_update == false' is not allowed");
   }
 
   // setup
@@ -334,7 +324,7 @@ void BlatterStressBalance::initialize_ice_hardness() {
         E_local;
       unsigned int k0 = m_grid->kBelowHeight(z_fem);
 
-      const std::vector<double> &zlevels = m_enthalpy->get_levels();
+      const std::vector<double> &zlevels = m_enthalpy->levels();
       const unsigned int Mz = m_grid->Mz();
 
       if (k0 + 1 < Mz) {
@@ -379,7 +369,7 @@ void BlatterStressBalance::transfer_velocity() {
   list.add(m_velocity);
 
   const unsigned int Mz = m_grid->Mz();
-  const std::vector<double> &zlevels = m_u.get_levels();
+  const std::vector<double> &zlevels = m_u.levels();
 
   for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();

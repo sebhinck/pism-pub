@@ -1,4 +1,4 @@
-// Copyright (C) 2009, 2010, 2011, 2012, 2013, 2014, 2015 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2017 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -22,7 +22,7 @@
 
 #include <gsl/gsl_rng.h>
 
-#include "base/util/iceModelVec.hh"  // only needed for FaustoGrevePDDObject
+#include "pism/util/iceModelVec.hh"  // only needed for FaustoGrevePDDObject
 
 namespace pism {
 namespace surface {
@@ -66,44 +66,58 @@ public:
     //! m day^-1 K^-1; ice-equivalent amount of ice melted, per PDD
     double ice;
     //! fraction of melted snow which refreezes as ice
-    double refreezeFrac;
+    double refreeze_fraction;
   };
 
-  LocalMassBalance(Config::ConstPtr myconfig, units::System::Ptr system);
-  virtual ~LocalMassBalance() {}
+  LocalMassBalance(Config::ConstPtr config, units::System::Ptr system);
+  virtual ~LocalMassBalance();
+
+  std::string method() const;
 
   virtual unsigned int get_timeseries_length(double dt) = 0;
 
   //! Count positive degree days (PDDs).  Returned value in units of K day.
   /*! Inputs T[0],...,T[N-1] are temperatures (K) at times t, t+dt_series, ..., t+(N-1)dt_series.
     Inputs `t`, `dt_series` are in seconds.  */
-  virtual void get_PDDs(double *S, double dt_series,
-                        double *T, unsigned int N, double *PDDs) = 0;
+  virtual void get_PDDs(double dt_series,
+                        const std::vector<double> &S,
+                        const std::vector<double> &T,
+                        std::vector<double> &PDDs) = 0;
 
   /*! Remove rain from precipitation. */
-  virtual void get_snow_accumulation(double *precip_rate, double *T,
-                                     unsigned int N) = 0;
+  virtual void get_snow_accumulation(const std::vector<double> &T,
+                                     std::vector<double> &precip_rate) = 0;
+
+  class Changes {
+  public:
+    Changes();
+
+    double firn_depth;
+    double snow_depth;
+    double melt;
+    double runoff;
+    double smb;
+  };
 
   /** 
    * Take a step of the PDD model.
    *
    * @param[in] ddf degree day factors
    * @param[in] PDDs number of positive degree days during the time step [K day]
+   * @param[in] old_firn_depth firn depth [ice equivalent meters]
+   * @param[in] old_snow_depth snow depth [ice equivalent meters]
    * @param[in] accumulation total solid (snow) accumulation during the time-step [ice equivalent meters]
-   * @param[in,out] snow_depth snow depth [ice equivalent meters]
-   * @param[in,out] cumulative_melt [ice equivalent meters]
-   * @param[in,out] cumulative_runoff [ice equivalent meters]
-   * @param[in,out] cumulative_smb [ice equivalent meters]
    */
-  virtual void step(const DegreeDayFactors &ddf,
-                    double PDDs,
-                    double accumulation,
-                    double &snow_depth,
-                    double &cumulative_melt,
-                    double &cumulative_runoff,
-                    double &cumulative_smb) = 0;
+  virtual Changes step(const DegreeDayFactors &ddf,
+                       double PDDs,
+                       double ice_thickness,
+                       double old_firn_depth,
+                       double old_snow_depth,
+                       double accumulation) = 0;
 
 protected:
+  std::string m_method;
+
   const Config::ConstPtr m_config;
   const units::System::Ptr m_unit_system;
   const double m_seconds_per_day;
@@ -119,23 +133,24 @@ protected:
 class PDDMassBalance : public LocalMassBalance {
 
 public:
-  PDDMassBalance(Config::ConstPtr myconfig, units::System::Ptr system);
+  PDDMassBalance(Config::ConstPtr config, units::System::Ptr system);
   virtual ~PDDMassBalance() {}
 
   virtual unsigned int get_timeseries_length(double dt);
-  virtual void get_PDDs(double *S, double dt_series,
-                        double *T, unsigned int N, double *PDDs);
+  virtual void get_PDDs(double dt_series,
+                        const std::vector<double> &S,
+                        const std::vector<double> &T,
+                        std::vector<double> &PDDs);
 
-  virtual void get_snow_accumulation(double *precip_rate, double *T,
-                                     unsigned int N);
+  virtual void get_snow_accumulation(const std::vector<double> &T,
+                                     std::vector<double> &precip_rate);
 
-  virtual void step(const DegreeDayFactors &ddf,
-                    double PDDs,
-                    double accumulation,
-                    double &snow_depth,
-                    double &cumulative_melt,
-                    double &cumulative_runoff,
-                    double &cumulative_smb);
+  virtual Changes step(const DegreeDayFactors &ddf,
+                       double PDDs,
+                       double ice_thickness,
+                       double firn_depth,
+                       double snow_depth,
+                       double accumulation);
 
 protected:
   double CalovGreveIntegrand(double sigma, double TacC);
@@ -161,16 +176,21 @@ protected:
   with appropriate spatial and temporal ranges.
 */
 class PDDrandMassBalance : public PDDMassBalance {
-
 public:
-  PDDrandMassBalance(Config::ConstPtr myconfig, units::System::Ptr system,
-                     bool repeatable); //! repeatable==true to seed with zero every time.
+
+  enum Kind {NOT_REPEATABLE = 0, REPEATABLE = 1};
+
+  PDDrandMassBalance(Config::ConstPtr config,
+                     units::System::Ptr system,
+                     Kind repeatable);
   virtual ~PDDrandMassBalance();
 
   virtual unsigned int get_timeseries_length(double dt);
 
-  virtual void get_PDDs(double *S, double dt_series,
-                        double *T, unsigned int N, double *PDDs);
+  virtual void get_PDDs(double dt_series,
+                        const std::vector<double> &S,
+                        const std::vector<double> &T,
+                        std::vector<double> &PDDs);
 protected:
   gsl_rng *pddRandGen;
 };
@@ -194,24 +214,63 @@ class FaustoGrevePDDObject {
 
 public:
   FaustoGrevePDDObject(IceGrid::ConstPtr g);
-  virtual ~FaustoGrevePDDObject() {}
+  virtual ~FaustoGrevePDDObject();
 
-  virtual void update_temp_mj(const IceModelVec2S &surfelev,
+  void update_temp_mj(const IceModelVec2S &surfelev,
                               const IceModelVec2S &lat,
                               const IceModelVec2S &lon);
 
   /*! If this method is called, it is assumed that i,j is in the ownership range
     for IceModelVec2S temp_mj. */
-  virtual void setDegreeDayFactors(int i, int j,
-                                   double /* usurf */, double lat, double /* lon */,
-                                   LocalMassBalance::DegreeDayFactors &ddf);
+  LocalMassBalance::DegreeDayFactors degree_day_factors(int i, int j, double latitude);
 
 protected:
   IceGrid::ConstPtr m_grid;
   const Config::ConstPtr m_config;
-  double beta_ice_w, beta_snow_w, T_c, T_w, beta_ice_c, beta_snow_c,
-    fresh_water_density, ice_density, pdd_fausto_latitude_beta_w;
+
+  double m_beta_ice_w;
+  double m_beta_snow_w;
+  double m_T_c;
+  double m_T_w;
+  double m_beta_ice_c;
+  double m_beta_snow_c;
+  double m_fresh_water_density;
+  double m_ice_density;
+  double m_pdd_fausto_latitude_beta_w;
+  double m_refreeze_fraction;
+
   IceModelVec2S m_temp_mj;
+};
+
+/*!
+  Aschwanden PDD parameters.
+
+  This may become a derived class of a LocationDependentPDDObject, if the idea
+  is needed more in the future.
+*/
+class AschwandenPDDObject {
+
+public:
+  AschwandenPDDObject(Config::ConstPtr config);
+  virtual ~AschwandenPDDObject();
+
+  LocalMassBalance::DegreeDayFactors degree_day_factors(double latitude);
+
+protected:
+  // "warm" PDD factors
+  double m_beta_ice_w;
+  double m_beta_snow_w;
+  // "cold" PDD factors
+  double m_beta_ice_c;
+  double m_beta_snow_c;
+  // transition from warm to cold
+  double m_transition_latitude;
+  double m_transition_width;
+  // PDD parameters
+  double m_refreeze_fraction;
+  // physical constants
+  double m_fresh_water_density;
+  double m_ice_density;
 };
 
 } // end of namespace surface

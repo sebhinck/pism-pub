@@ -17,9 +17,8 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "IPTotalVariationFunctional.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/pism_const.hh"
-#include "base/util/pism_utilities.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/pism_utilities.hh"
 
 namespace pism {
 namespace inverse {
@@ -91,8 +90,7 @@ void IPTotalVariationFunctional2S::gradientAt(IceModelVec2S &x, IceModelVec2S &g
 
   double gradient_e[Nk];
 
-  IceModelVec::AccessList list(x);
-  list.add(gradient);
+  IceModelVec::AccessList list{&x, &gradient};
 
   // An Nq by Nk array of test function values.
   const fem::Germs *test = m_quadrature.test_function_values();

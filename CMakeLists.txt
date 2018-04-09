@@ -1,12 +1,16 @@
-cmake_minimum_required (VERSION 2.8.8) # 2.8.8 was released on April 19, 2012
+cmake_minimum_required (VERSION 3.1)
 project (Pism C CXX)
 
-if (NOT ${CMAKE_VERSION} VERSION_LESS 3.0.0)
-  message(STATUS "CMAKE_VERSION >= 3.0.0. Setting policy 0026 behavior to 'old'...")
-  # This has to do with the way we compute dependencies of PISM's
-  # Python bindings. Enabling the "old" behavior allows us to support
-  # both old and new (>= 3.0) CMake versions.
-  cmake_policy(SET CMP0026 OLD)
+# Require C++11 compiler support.
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Looks like CMAKE_CXX_STANDARD does not support Intel C++ compilers
+# yet...
+if (CMAKE_CXX_COMPILER_ID MATCHES "Intel" AND NOT CMAKE_CXX_FLAGS MATCHES "-std=c\\+\\+11")
+  message (STATUS "Adding -std=c++11 to C++ compiler flags for Intel compilers.")
+  set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}" CACHE STRING "C++ compiler flags" FORCE)
 endif()
 
 include ("CMake/PISM_CMake_macros.cmake")
@@ -34,13 +38,15 @@ option (Pism_BUILD_EXTRA_EXECS "Build extra executables (mostly testing/verifica
 option (BUILD_SHARED_LIBS      "Build shared Pism libraries" ON)
 option (Pism_BUILD_PYTHON_BINDINGS "Build python bindings" OFF)
 option (Pism_BUILD_ICEBIN "Build PISM portions of IceBin library" OFF)
-option (Pism_BUILD_PDFS "Build PISM's PDF documentation with 'make all'." OFF)
+option (Pism_BUILD_DOCS "Build PISM's documentation with 'make all'." OFF)
 option (Pism_USE_PROJ4 "Use Proj.4 to compute cell areas, longitudes, and latitudes." OFF)
 option (Pism_USE_PARALLEL_NETCDF4 "Enables parallel NetCDF-4 I/O." OFF)
 option (Pism_USE_PNETCDF "Enables parallel NetCDF-3 I/O using PnetCDF." OFF)
-option (Pism_USE_PARALLEL_HDF5 "Enables parallel HDF5 I/O." OFF)
-option (Pism_USE_TAO "Use TAO in inverse solvers." ON)
-option (Pism_USE_JANSSON "Use Jansson to store configuration files." OFF)
+option (Pism_ENABLE_DOCUMENTATION "Enable targets building PISM's documentation." ON)
+
+# PISM will eventually use Jansson to read configuration files.
+set (Pism_USE_JANSSON OFF)
+# option (Pism_USE_JANSSON "Use Jansson to read configuration files." OFF)
 
 option (Pism_TEST_USING_VALGRIND "Add extra regression tests using valgrind" OFF)
 mark_as_advanced (Pism_TEST_USING_VALGRIND)
@@ -49,21 +55,7 @@ option (Pism_ADD_FPIC "Add -fPIC to C++ compiler flags (CMAKE_CXX_FLAGS). Try tu
 option (Pism_CODE_COVERAGE "Add compiler options for code coverage testing." OFF)
 option (Pism_LINK_STATICALLY "Set CMake flags to try to ensure that everything is linked statically")
 option (Pism_LOOK_FOR_LIBRARIES "Specifies whether PISM should look for libraries. (Disable this on Crays.)" ON)
-option (Pism_USE_TR1 "If 'ON', #include <tr1/memory>, otherwise #include <memory>." OFF)
-option (Pism_CXX11 "Set compilers to C++11 mode.  Required to build IceBin." OFF)
-
-if (Pism_CXX11)
-  set(CMAKE_CXX_STANDARD 11)
-  add_definitions (-DPISM_CXX11=1)
-
-  # Old CMake versions don't know about C++ standards.
-  if (${CMAKE_VERSION} VERSION_LESS 3.0.0)
-    if (NOT CMAKE_CXX_FLAGS MATCHES "-std=c\\+\\+11")
-      message (STATUS "Adding -std=c++11 to C++ compiler flags.")
-      set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}" CACHE STRING "C++ compiler flags" FORCE)
-    endif()
-  endif()
-endif()
+option (Pism_USE_EVERYTRACE "Use the Everytrace library to provide stacktraces on crashes." OFF)
 
 # Use rpath by default; this has to go first, because rpath settings may be overridden later.
 pism_use_rpath()
@@ -73,16 +65,13 @@ if (Pism_LINK_STATICALLY)
 endif ()
 
 # Deal with build types
-set (Pism_BUILD_TYPE "Release" CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
-# Force the default cache entry to obey Pism_BUILD_TYPE
-set (CMAKE_BUILD_TYPE ${Pism_BUILD_TYPE} CACHE STRING "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel." FORCE)
-mark_as_advanced (CMAKE_BUILD_TYPE) # hide the default entry
-if (Pism_BUILD_TYPE MATCHES "Debug")
+mark_as_advanced(CLEAR CMAKE_BUILD_TYPE)
+if (CMAKE_BUILD_TYPE MATCHES "Debug")
   set (Pism_BUILD_EXTRA_EXECS ON CACHE BOOL "Build extra executables (mostly testing/verification)" FORCE)
   option (Pism_DEBUG              "Enables extra checks in the code."          ON)
   option (Pism_PEDANTIC_WARNINGS  "Compile with pedantic warnings."            ON)
   option (Pism_GPROF_FLAGS        "Add flags necessary to profile with gprof." OFF)
-endif (Pism_BUILD_TYPE MATCHES "Debug")
+endif (CMAKE_BUILD_TYPE MATCHES "Debug")
 
 # Enable extra checks in the code:
 if (Pism_DEBUG)
@@ -136,17 +125,6 @@ if (Pism_GPROF_FLAGS)
   set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg -fno-omit-frame-pointer -fno-inline-functions -fno-inline-functions-called-once -fno-optimize-sibling-calls")
 endif ()
 
-# Check if the C++ compiler has shared_ptr in std.
-pism_check_shared_ptr()
-if (Pism_USE_TR1)
-  message(STATUS "Using '#include <tr1/memory> and std::tr1::shared_ptr<...>.")
-  message(STATUS "Adding -DPISM_USE_TR1=1 to compiler flags.")
-  add_definitions (-DPISM_USE_TR1=1)
-else()
-  message(STATUS "Using '#include <memory> and std::shared_ptr<...>.")
-endif()
-mark_as_advanced (Pism_USE_TR1)
-
 if (Pism_USE_JANSSON)
   add_definitions (-DPISM_USE_JANSSON=1)
 endif()
@@ -164,10 +142,22 @@ pism_set_dependencies()
 pism_check_petsc_scalar_type()
 pism_set_version_info()
 
+if (Pism_USE_EVERYTRACE)
+  find_package(Everytrace REQUIRED)
+  list (APPEND Pism_EXTERNAL_LIBS ${EVERYTRACE_LIBRARY})
+endif()
+
 if (Pism_BUILD_PYTHON_BINDINGS)
   find_package(Python REQUIRED)
   find_package(PETSc4Py REQUIRED)
   find_package(SWIG REQUIRED)
+
+  if (DEFINED PETSC4PY_VERSION)
+    # FindPETSc4Py.cmake does not put PETSC4PY_VERSION into the CMake cache,
+    # so we save it here.
+    set(Pism_PETSC4PY_VERSION ${PETSC4PY_VERSION} CACHE STRING "PETSc4Py version")
+    mark_as_advanced(Pism_PETSC4PY_VERSION)
+  endif()
 
   mark_as_advanced (SWIG_DIR SWIG_EXECUTABLE SWIG_VERSION)
 
@@ -184,11 +174,6 @@ if (Pism_USE_PROJ4)
   add_definitions (-DPISM_USE_PROJ4=1)
 else()
   add_definitions (-DPISM_USE_PROJ4=0)
-endif()
-
-# Use TAO in inverse solvers.
-if (Pism_USE_TAO)
-  add_definitions (-DPISM_USE_TAO=1)
 endif()
 
 add_custom_target (etags
@@ -216,13 +201,20 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/util/ DESTINATION ${Pism_BIN_DIR}
   USE_SOURCE_PERMISSIONS
   FILES_MATCHING PATTERN "*.py")
 
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/examples
+  DESTINATION ${Pism_SHARE_DIR}
+  USE_SOURCE_PERMISSIONS)
+
 add_subdirectory (src)
 add_subdirectory (site-packages)
 
-if (Pism_BUILD_PDFS)
-  add_subdirectory (doc)
-else()
-  add_subdirectory (doc EXCLUDE_FROM_ALL)
+if (Pism_ENABLE_DOCUMENTATION)
+  if (Pism_BUILD_DOCS)
+    add_subdirectory (doc)
+  else()
+    add_subdirectory (doc EXCLUDE_FROM_ALL)
+  endif()
 endif()
 
 # PISM regression testing

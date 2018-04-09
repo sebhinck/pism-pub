@@ -16,17 +16,17 @@
 // along with PISM; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-#include <cassert>
-
 #include "IP_SSAHardavForwardProblem.hh"
-#include "base/basalstrength/basal_resistance.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/Mask.hh"
-#include "base/util/PISMConfigInterface.hh"
-#include "base/util/PISMVars.hh"
-#include "base/util/error_handling.hh"
-#include "base/util/pism_const.hh"
-#include "base/rheology/FlowLaw.hh"
+#include "pism/basalstrength/basal_resistance.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/Mask.hh"
+#include "pism/util/ConfigInterface.hh"
+#include "pism/util/Vars.hh"
+#include "pism/util/error_handling.hh"
+#include "pism/util/pism_utilities.hh"
+#include "pism/rheology/FlowLaw.hh"
+#include "pism/geometry/Geometry.hh"
+#include "pism/stressbalance/StressBalance.hh"
 
 namespace pism {
 namespace inverse {
@@ -41,19 +41,11 @@ IP_SSAHardavForwardProblem::IP_SSAHardavForwardProblem(IceGrid::ConstPtr g,
     m_element(*m_grid),
     m_quadrature(g->dx(), g->dy(), 1.0),
     m_rebuild_J_state(true) {
-  this->construct();
-}
 
-IP_SSAHardavForwardProblem::~IP_SSAHardavForwardProblem() {
-  // empty
-}
-
-void IP_SSAHardavForwardProblem::construct() {
   PetscErrorCode ierr;
   int stencilWidth = 1;
 
-  m_velocity_shared.reset(new IceModelVec2V);
-  m_velocity_shared->create(m_grid, "dummy", WITHOUT_GHOSTS);
+  m_velocity_shared.reset(new IceModelVec2V(m_grid, "dummy", WITHOUT_GHOSTS));
   m_velocity_shared->metadata(0) = m_velocity.metadata(0);
   m_velocity_shared->metadata(1) = m_velocity.metadata(1);
 
@@ -65,16 +57,11 @@ void IP_SSAHardavForwardProblem::construct() {
   m_du_local.create(m_grid, "linearization work vector (with ghosts)",
                     WITH_GHOSTS, stencilWidth);
 
-#if PETSC_VERSION_LT(3,5,0)
-  ierr = DMCreateMatrix(*m_da, "baij", m_J_state.rawptr());
-  PISM_CHK(ierr, "DMCreateMatrix");
-#else
   ierr = DMSetMatType(*m_da, MATBAIJ);
   PISM_CHK(ierr, "DMSetMatType");
 
   ierr = DMCreateMatrix(*m_da, m_J_state.rawptr());
   PISM_CHK(ierr, "DMCreateMatrix");
-#endif
 
   ierr = KSPCreate(m_grid->com, m_ksp.rawptr());
   PISM_CHK(ierr, "KSPCreate");
@@ -94,6 +81,42 @@ void IP_SSAHardavForwardProblem::construct() {
   PISM_CHK(ierr, "KSPSetFromOptions");
 }
 
+void IP_SSAHardavForwardProblem::init() {
+
+  SSAFEM::init();
+
+  // Get most of the inputs from IceGrid::variables() and fake the rest.
+  //
+  // I will need to fix this at some point.
+  {
+    Geometry geometry(m_grid);
+    geometry.cell_area.set(m_grid->dx() * m_grid->dy());
+    geometry.ice_thickness.copy_from(*m_grid->variables().get_2d_scalar("land_ice_thickness"));
+    geometry.bed_elevation.copy_from(*m_grid->variables().get_2d_scalar("bedrock_altitude"));
+    geometry.sea_level_elevation.set(0.0); // FIXME: this should be an input
+    geometry.ice_area_specific_volume.set(0.0);
+
+    geometry.ensure_consistency(m_config->get_double("stress_balance.ice_free_thickness_standard"));
+
+    stressbalance::Inputs inputs;
+
+    inputs.geometry              = &geometry;
+    inputs.basal_melt_rate       = NULL;
+    inputs.melange_back_pressure = NULL;
+    inputs.basal_yield_stress    = m_grid->variables().get_2d_scalar("tauc");
+    inputs.enthalpy              = m_grid->variables().get_3d_scalar("enthalpy");
+    inputs.age                   = NULL;
+    inputs.bc_mask               = m_grid->variables().get_2d_mask("bc_mask");
+    inputs.bc_values             = m_grid->variables().get_2d_vector("vel_ssa_bc");
+
+    cache_inputs(inputs);
+  }
+}
+
+IP_SSAHardavForwardProblem::~IP_SSAHardavForwardProblem() {
+  // empty
+}
+
 //! Sets the current value of of the design paramter \f$\zeta\f$.
 /*! This method sets \f$\zeta\f$ but does not solve the %SSA.
 It it intended for inverse methods that simultaneously compute
@@ -111,8 +134,7 @@ void IP_SSAHardavForwardProblem::set_design(IceModelVec2S &new_zeta) {
   m_design_param.convertToDesignVariable(*m_zeta, m_hardav);
 
   // Cache hardav at the quadrature points.
-  IceModelVec::AccessList list(m_hardav);
-  list.add(m_coefficients);
+  IceModelVec::AccessList list{&m_coefficients, &m_hardav};
 
   for (PointsWithGhosts p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();
@@ -227,13 +249,10 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design(IceModelVec2V &u,
   const unsigned int Nq     = m_quadrature.n();
   const unsigned int Nq_max = fem::MAX_QUADRATURE_SIZE;
 
-  IceModelVec::AccessList list;
-  list.add(m_coefficients);
-  list.add(*m_zeta);
-  list.add(u);
+  IceModelVec::AccessList list{&m_coefficients, m_zeta, &u};
 
   IceModelVec2S *dzeta_local;
-  if (dzeta.get_stencil_width() > 0) {
+  if (dzeta.stencil_width() > 0) {
     dzeta_local = &dzeta;
   } else {
     m_dzeta_local.copy_from(dzeta);
@@ -250,9 +269,9 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design(IceModelVec2V &u,
   }
 
   // Aliases to help with notation consistency below.
-  const IceModelVec2Int *m_dirichletLocations = m_bc_mask;
-  const IceModelVec2V   *m_dirichletValues    = m_bc_values;
-  double           m_dirichletWeight    = m_dirichletScale;
+  const IceModelVec2Int *dirichletLocations = m_bc_mask;
+  const IceModelVec2V   *dirichletValues    = m_bc_values;
+  double                 dirichletWeight    = m_dirichletScale;
 
   Vector2 u_e[Nk];
   Vector2 U[Nq_max], U_x[Nq_max], U_y[Nq_max];
@@ -269,8 +288,8 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design(IceModelVec2V &u,
   // An Nq by Nk array of test function values.
   const fem::Germs *test = m_quadrature.test_function_values();
 
-  fem::DirichletData_Vector dirichletBC(m_dirichletLocations, m_dirichletValues,
-                                        m_dirichletWeight);
+  fem::DirichletData_Vector dirichletBC(dirichletLocations, dirichletValues,
+                                        dirichletWeight);
   fem::DirichletData_Scalar fixedZeta(m_fixed_design_locations, NULL);
 
   // Jacobian times weights for quadrature.
@@ -416,13 +435,10 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design_transpose(IceModelVec2V &
   const unsigned int Nq     = m_quadrature.n();
   const unsigned int Nq_max = fem::MAX_QUADRATURE_SIZE;
 
-  IceModelVec::AccessList list;
-  list.add(m_coefficients);
-  list.add(*m_zeta);
-  list.add(u);
+  IceModelVec::AccessList list{&m_coefficients, m_zeta, &u};
 
   IceModelVec2V *du_local;
-  if (du.get_stencil_width() > 0) {
+  if (du.stencil_width() > 0) {
     du_local = &du;
   } else {
     m_du_local.copy_from(du);
@@ -444,12 +460,12 @@ void IP_SSAHardavForwardProblem::apply_jacobian_design_transpose(IceModelVec2V &
   const fem::Germs *test = m_quadrature.test_function_values();
 
   // Aliases to help with notation consistency.
-  const IceModelVec2Int *m_dirichletLocations = m_bc_mask;
-  const IceModelVec2V   *m_dirichletValues = m_bc_values;
-  double        m_dirichletWeight = m_dirichletScale;
+  const IceModelVec2Int *dirichletLocations = m_bc_mask;
+  const IceModelVec2V   *dirichletValues    = m_bc_values;
+  double                 dirichletWeight    = m_dirichletScale;
 
-  fem::DirichletData_Vector dirichletBC(m_dirichletLocations, m_dirichletValues,
-                                        m_dirichletWeight);
+  fem::DirichletData_Vector dirichletBC(dirichletLocations, dirichletValues,
+                                        dirichletWeight);
 
   // Jacobian times weights for quadrature.
   const double* W = m_quadrature.weights();
@@ -575,14 +591,10 @@ void IP_SSAHardavForwardProblem::apply_linearization(IceModelVec2S &dzeta, IceMo
   m_du_global.scale(-1);
 
   // call PETSc to solve linear system by iterative method.
-#if PETSC_VERSION_LT(3,5,0)
-  ierr = KSPSetOperators(m_ksp, m_J_state, m_J_state, SAME_NONZERO_PATTERN);
-  PISM_CHK(ierr, "KSPSetOperators");
-#else
   ierr = KSPSetOperators(m_ksp, m_J_state, m_J_state);
   PISM_CHK(ierr, "KSPSetOperators");
-#endif
-  ierr = KSPSolve(m_ksp, m_du_global.get_vec(), m_du_global.get_vec());
+
+  ierr = KSPSolve(m_ksp, m_du_global.vec(), m_du_global.vec());
   PISM_CHK(ierr, "KSPSolve"); // SOLVE
 
   KSPConvergedReason reason;
@@ -631,28 +643,24 @@ void IP_SSAHardavForwardProblem::apply_linearization_transpose(IceModelVec2V &du
   }
 
   // Aliases to help with notation consistency below.
-  const IceModelVec2Int *m_dirichletLocations = m_bc_mask;
-  const IceModelVec2V   *m_dirichletValues    = m_bc_values;
-  double        m_dirichletWeight    = m_dirichletScale;
+  const IceModelVec2Int *dirichletLocations = m_bc_mask;
+  const IceModelVec2V   *dirichletValues    = m_bc_values;
+  double                 dirichletWeight    = m_dirichletScale;
 
   m_du_global.copy_from(du);
   Vector2 **du_a = m_du_global.get_array();
-  fem::DirichletData_Vector dirichletBC(m_dirichletLocations, m_dirichletValues,
-                                        m_dirichletWeight);
+  fem::DirichletData_Vector dirichletBC(dirichletLocations, dirichletValues,
+                                        dirichletWeight);
   if (dirichletBC) {
     dirichletBC.fix_residual_homogeneous(du_a);
   }
   m_du_global.end_access();
 
   // call PETSc to solve linear system by iterative method.
-#if PETSC_VERSION_LT(3,5,0)
-  ierr = KSPSetOperators(m_ksp, m_J_state, m_J_state, SAME_NONZERO_PATTERN);
-  PISM_CHK(ierr, "KSPSetOperators");
-#else
   ierr = KSPSetOperators(m_ksp, m_J_state, m_J_state);
   PISM_CHK(ierr, "KSPSetOperators");
-#endif
-  ierr = KSPSolve(m_ksp, m_du_global.get_vec(), m_du_global.get_vec());
+
+  ierr = KSPSolve(m_ksp, m_du_global.vec(), m_du_global.vec());
   PISM_CHK(ierr, "KSPSolve"); // SOLVE
 
   KSPConvergedReason  reason;
@@ -671,7 +679,7 @@ void IP_SSAHardavForwardProblem::apply_linearization_transpose(IceModelVec2V &du
   this->apply_jacobian_design_transpose(m_velocity, m_du_global, dzeta);
   dzeta.scale(-1);
 
-  if (dzeta.get_stencil_width() > 0) {
+  if (dzeta.stencil_width() > 0) {
     dzeta.update_ghosts();
   }
 }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016 PISM Authors
+/* Copyright (C) 2015, 2016, 2017, 2018 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -22,10 +22,10 @@
 
 #include <gsl/gsl_interp.h>
 
-#include "base/util/pism_options.hh"
-#include "base/util/error_handling.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/io/PIO.hh"
+#include "pism/util/pism_options.hh"
+#include "pism/util/error_handling.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/io/PIO.hh"
 
 namespace pism {
 
@@ -68,6 +68,7 @@ static void subset_extent(const std::string& axis,
   // include one more point if we can
   x_end = std::min(x.size() - 1, x_end + 1);
 
+  // NOTE: this assumes the CELL_CORNER grid registration
   Lx = (x[x_end] - x[x_start]) / 2.0;
 
   x0 = (x[x_start] + x[x_end]) / 2.0;
@@ -81,14 +82,12 @@ static void subset_extent(const std::string& axis,
  */
 IceGrid::Ptr regional_grid_from_options(Context::Ptr ctx) {
 
-  const Periodicity p = string_to_periodicity(ctx->config()->get_string("grid.periodicity"));
-
   const options::String input_file("-i", "Specifies a PISM input file");
   const bool bootstrap = options::Bool("-bootstrap", "enable bootstrapping heuristics");
   const options::RealList x_range("-x_range",
-                                  "range of X coordinates in the selected subset");
+                                  "range of X coordinates in the selected subset", {});
   const options::RealList y_range("-y_range",
-                                  "range of Y coordinates in the selected subset");
+                                  "range of Y coordinates in the selected subset", {});
 
   if (input_file.is_set() and bootstrap and x_range.is_set() and y_range.is_set()) {
     // bootstrapping; get domain size defaults from an input file, allow overriding all grid
@@ -104,31 +103,26 @@ IceGrid::Ptr regional_grid_from_options(Context::Ptr ctx) {
 
     GridParameters input_grid(ctx->config());
 
-    std::vector<std::string> names;
-    names.push_back("enthalpy");
-    names.push_back("temp");
-    names.push_back("land_ice_thickness");
-    names.push_back("bedrock_altitude");
-    names.push_back("thk");
-    names.push_back("topg");
+    std::vector<std::string> names = {"enthalpy", "temp", "land_ice_thickness",
+                                      "bedrock_altitude", "thk", "topg"};
     bool grid_info_found = false;
 
     PIO file(ctx->com(), "netcdf3", input_file, PISM_READONLY);
-    for (unsigned int i = 0; i < names.size(); ++i) {
+    for (auto name : names) {
 
-      grid_info_found = file.inq_var(names[i]);
+      grid_info_found = file.inq_var(name);
       if (not grid_info_found) {
         std::string dummy1;
         bool dummy2;
-        // Failed to find using a short name. Try using names[i] as a
+        // Failed to find using a short name. Try using name as a
         // standard name...
-        file.inq_var("dummy", names[i], grid_info_found, dummy1, dummy2);
+        file.inq_var("dummy", name, grid_info_found, dummy1, dummy2);
       }
 
       if (grid_info_found) {
-        input_grid = GridParameters(ctx, file, names[i], p);
+        input_grid = GridParameters(ctx, file, name, CELL_CORNER);
 
-        grid_info full = grid_info(file, names[i], ctx->unit_system(), p);
+        grid_info full = grid_info(file, name, ctx->unit_system(), CELL_CORNER);
 
         // x direction
         subset_extent("x", full.x, x_range[0], x_range[1],
@@ -137,8 +131,9 @@ IceGrid::Ptr regional_grid_from_options(Context::Ptr ctx) {
         subset_extent("y", full.y, y_range[0], y_range[1],
                       input_grid.y0, input_grid.Ly, input_grid.My);
 
-        // Set periodicity to "NONE" to that IceGrid computes coordinates correctly.
-        input_grid.periodicity = NONE;
+        // Set registration to "CELL_CORNER" so that IceGrid computes
+        // coordinates correctly.
+        input_grid.registration = CELL_CORNER;
 
         break;
       }

@@ -42,7 +42,7 @@ def create_grid_test():
     "Test the creation of the IceGrid object"
     grid1 = create_dummy_grid()
 
-    grid2 = PISM.model.initGrid(PISM.Context(), 100e3, 100e3, 4000, 11, 11, 21, PISM.NOT_PERIODIC)
+    grid2 = PISM.model.initGrid(PISM.Context(), 100e3, 100e3, 4000, 11, 11, 21, PISM.CELL_CORNER)
 
 
 def algorithm_failure_exception_test():
@@ -171,7 +171,7 @@ def grid_from_file_test():
 
     pio = PISM.PIO(grid.com, "netcdf3", output_file, PISM.PISM_READONLY)
 
-    grid2 = PISM.IceGrid.FromFile(grid.ctx(), pio, "enthalpy", PISM.NOT_PERIODIC)
+    grid2 = PISM.IceGrid.FromFile(grid.ctx(), pio, "enthalpy", PISM.CELL_CORNER)
 
 
 def create_special_vecs_test():
@@ -393,6 +393,7 @@ def sia_test():
     params.Mx = 100
     params.My = 100
     params.Mz = 11
+    params.registration = PISM.CELL_CORNER
     params.periodicity = PISM.NOT_PERIODIC
     params.ownership_ranges_from_options(ctx.size)
     grid = PISM.IceGrid(ctx.ctx, params)
@@ -538,7 +539,6 @@ def column_interpolation_test(plot=False):
 
         def plot():
             plt.figure()
-            plt.hold(True)
             plt.plot(z, f, 'o-', label="original coarse-grid data")
             plt.plot(z_fine, f_fine, 'o-', label="interpolated onto the fine grid")
             plt.plot(z, f_roundtrip, 'o-', label="interpolated back onto the coarse grid")
@@ -848,7 +848,7 @@ def ssa_trivial_test():
     class TrivialSSARun(PISM.ssa.SSAExactTestCase):
         def _initGrid(self):
             self.grid = PISM.IceGrid.Shallow(PISM.Context().ctx, L, L, 0, 0,
-                                             self.Mx, self.My, PISM.NONE)
+                                             self.Mx, self.My, PISM.CELL_CORNER, PISM.NOT_PERIODIC)
 
         def _initPhysics(self):
             self.modeldata.setPhysics(context.enthalpy_converter)
@@ -957,47 +957,6 @@ def regridding_test():
 
     import os
     os.remove("thk1.nc")
-def po_constant_test():
-    """Test that the basal melt rate computed by ocean::Constant is the
-    same regardless of whether it is set using
-    ocean.sub_shelf_heat_flux_into_ice or the command-line option."""
-
-    grid = create_dummy_grid()
-    config = grid.ctx().config()
-
-    L = config.get_double("constants.fresh_water.latent_heat_of_fusion")
-    rho = config.get_double("constants.ice.density")
-
-    # prescribe a heat flux that corresponds to a mass flux which is
-    # an integer multiple of m / year so that we can easily specify it
-    # using a command-line option
-    M = PISM.convert(grid.ctx().unit_system(), 1, "m / year", "m / second")
-    Q_default = config.get_double("ocean.sub_shelf_heat_flux_into_ice")
-    Q = M * L * rho
-    config.set_double("ocean.sub_shelf_heat_flux_into_ice", Q)
-
-    # without the command-line option
-    ocean_constant = PISM.OceanConstant(grid)
-    ocean_constant.init()
-    mass_flux_1 = PISM.model.createIceThicknessVec(grid)
-    ocean_constant.shelf_base_mass_flux(mass_flux_1)
-
-    # reset Q
-    config.set_double("ocean.sub_shelf_heat_flux_into_ice", Q_default)
-
-    # with the command-line option
-    o = PISM.PETSc.Options()
-    o.setValue("-shelf_base_melt_rate", 1.0)
-
-    ocean_constant = PISM.OceanConstant(grid)
-    ocean_constant.init()
-    mass_flux_2 = PISM.model.createIceThicknessVec(grid)
-    ocean_constant.shelf_base_mass_flux(mass_flux_2)
-
-    import numpy as np
-    with PISM.vec.Access(nocomm=[mass_flux_1, mass_flux_2]):
-        assert np.fabs(mass_flux_1[0, 0] - M * rho) < 1e-16
-        assert np.fabs(mass_flux_2[0, 0] - M * rho) < 1e-16
 
 def netcdf_string_attribute_test():
     "Test reading a NetCDF-4 string attribute."
@@ -1047,3 +1006,120 @@ netcdf string_attribute_test {
     compare("netcdf4_parallel")
 
     teardown()
+
+def interpolation_weights_test():
+    "Test 2D interpolation weights."
+
+    def interp2d(grid, F, x, y):
+        i_left, i_right, j_bottom, j_top = grid.compute_point_neighbors(x, y)
+        w = grid.compute_interp_weights(x, y);
+
+        i = [i_left, i_right, i_right, i_left]
+        j = [j_bottom, j_bottom, j_top, j_top]
+
+        result = 0.0
+        for k in range(4):
+            result += w[k] * F[j[k], i[k]]
+
+        return result;
+
+    Mx = 100
+    My = 200
+    Lx = 20
+    Ly = 10
+
+    grid = PISM.IceGrid_Shallow(PISM.Context().ctx,
+                                Lx, Ly, 0, 0, Mx, My,
+                                PISM.CELL_CORNER,
+                                PISM.NOT_PERIODIC)
+
+    x = grid.x()
+    y = grid.y()
+    X,Y = np.meshgrid(x,y)
+    Z = 2 * X + 3 * Y
+
+    N = 1000
+    np.random.seed(1)
+    x_pts = np.random.rand(N) * (2 * Lx) - Lx
+    y_pts = np.random.rand(N) * (2 * Ly) - Ly
+    # a linear function should be recovered perfectly
+    exact = 2 * x_pts + 3 * y_pts
+
+    result = np.array([interp2d(grid, Z, x_pts[k], y_pts[k]) for k in range(N)])
+
+    np.testing.assert_almost_equal(result, exact)
+
+def vertical_extrapolation_during_regridding_test():
+    "Test extrapolation in the vertical direction"
+    # create a grid with 11 levels, 1000m thick
+    ctx = PISM.Context()
+    params = PISM.GridParameters(ctx.config)
+    params.Lx = 1e5
+    params.Ly = 1e5
+    params.Mx = 3
+    params.My = 3
+    params.Mz = 11
+    params.Lz = 1000
+    params.registration = PISM.CELL_CORNER
+    params.periodicity = PISM.NOT_PERIODIC
+    params.ownership_ranges_from_options(ctx.size)
+
+    z = np.linspace(0, params.Lz, params.Mz)
+    params.z[:] = z
+
+    grid = PISM.IceGrid(ctx.ctx, params)
+
+    # create an IceModelVec that uses this grid
+    v = PISM.IceModelVec3()
+    v.create(grid, "test", PISM.WITHOUT_GHOSTS)
+    v.set(0.0)
+
+    # set a column
+    with PISM.vec.Access(nocomm=[v]):
+        v.set_column(1, 1, z)
+
+    # save to a file
+    v.dump("test.nc")
+
+    # create a taller grid (to 2000m):
+    params.Lz = 2000
+    params.Mz = 41
+    z_tall = np.linspace(0, params.Lz, params.Mz)
+    params.z[:] = z_tall
+
+    tall_grid = PISM.IceGrid(ctx.ctx, params)
+
+    # create an IceModelVec that uses this grid
+    v_tall = PISM.IceModelVec3()
+    v_tall.create(tall_grid, "test", PISM.WITHOUT_GHOSTS)
+
+    # Try regridding without extrapolation. This should fail.
+    try:
+        ctx.ctx.log().disable()
+        v_tall.regrid("test.nc", PISM.CRITICAL)
+        ctx.ctx.log().enable()
+        raise AssertionError("Should not be able to regrid without extrapolation")
+    except RuntimeError as e:
+        pass
+
+    # allow extrapolation during regridding
+    ctx.config.set_boolean("grid.allow_extrapolation", True)
+
+    # regrid from test.nc
+    ctx.ctx.log().disable()
+    v_tall.regrid("test.nc", PISM.CRITICAL)
+    ctx.ctx.log().enable()
+
+    # get a column
+    with PISM.vec.Access(nocomm=[v_tall]):
+        column = np.array(v_tall.get_column_vector(1, 1))
+
+    # compute the desired result
+    desired = np.r_[np.linspace(0, 1000, 21), np.zeros(20) + 1000]
+
+    # compare
+    np.testing.assert_almost_equal(column, desired)
+
+    # clean up
+    import os
+    os.remove("test.nc")

@@ -1,4 +1,4 @@
-/* Copyright (C) 2016 PISM Authors
+/* Copyright (C) 2016, 2017 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -18,8 +18,6 @@
  */
 
 #include "EnthalpyModel_Regional.hh"
-#include "base/util/io/PIO.hh"
-#include "base/util/PISMVars.hh"
 
 namespace pism {
 namespace energy {
@@ -28,7 +26,7 @@ EnthalpyModel_Regional::EnthalpyModel_Regional(IceGrid::ConstPtr grid,
                                                stressbalance::StressBalance *stress_balance)
   : EnthalpyModel(grid, stress_balance) {
   // Note that the name of this variable (bmr_stored) does not matter: it is
-  // *never* read or written. We make a copy of bmelt instead.
+  // *never* read or written. We make a copy of basal_melt_rate_grounded instead.
   m_basal_melt_rate_stored.create(m_grid, "bmr_stored", WITHOUT_GHOSTS);
   m_basal_melt_rate_stored.set_attrs("internal",
                                      "time-independent basal melt rate in the no-model-strip",
@@ -70,21 +68,18 @@ void EnthalpyModel_Regional::initialize_impl(const IceModelVec2S &basal_melt_rat
 
 
 void EnthalpyModel_Regional::update_impl(double t, double dt,
-                                         const EnergyModelInputs &inputs) {
+                                         const Inputs &inputs) {
 
   unsigned int Mz = m_grid->Mz();
 
   EnthalpyModel::update_impl(t, dt, inputs);
 
-  const IceModelVec2Int &no_model_mask = *m_grid->variables().get_2d_mask("no_model_mask");
+  const IceModelVec2Int &no_model_mask = *inputs.no_model_mask;
 
-  // The call above sets m_work; ghosts are comminucated later (in EnergyModel::update()).
-  IceModelVec::AccessList list;
-  list.add(no_model_mask);
-  list.add(m_work);
-  list.add(m_ice_enthalpy);
-  list.add(m_basal_melt_rate);
-  list.add(m_basal_melt_rate_stored);
+  // The update_impl() call above sets m_work; ghosts are communicated
+  // later (in EnergyModel::update()).
+  IceModelVec::AccessList list{&no_model_mask, &m_work, &m_ice_enthalpy,
+      &m_basal_melt_rate, &m_basal_melt_rate_stored};
 
   for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();

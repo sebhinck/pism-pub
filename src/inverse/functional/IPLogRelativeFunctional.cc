@@ -1,4 +1,4 @@
-// Copyright (C) 2012, 2014, 2015, 2016  David Maxwell
+// Copyright (C) 2012, 2014, 2015, 2016, 2017  David Maxwell
 //
 // This file is part of PISM.
 //
@@ -17,9 +17,8 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "IPLogRelativeFunctional.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/pism_const.hh"
-#include "base/util/pism_utilities.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/pism_utilities.hh"
 
 namespace pism {
 namespace inverse {
@@ -40,8 +39,7 @@ void IPLogRelativeFunctional::normalize(double scale) {
 
   double w = 1.;
 
-  IceModelVec::AccessList list;
-  list.add(m_u_observed);
+  IceModelVec::AccessList list(m_u_observed);
 
   if (m_weights) {
     list.add(*m_weights);
@@ -68,9 +66,7 @@ void IPLogRelativeFunctional::valueAt(IceModelVec2V &x, double *OUTPUT)  {
 
   double w = 1;
 
-  IceModelVec::AccessList list;
-  list.add(x);
-  list.add(m_u_observed);
+  IceModelVec::AccessList list{&x, &m_u_observed};
   if (m_weights) {
     list.add(*m_weights);
   }
@@ -97,10 +93,7 @@ void IPLogRelativeFunctional::gradientAt(IceModelVec2V &x, IceModelVec2V &gradie
 
   double w = 1;
 
-  IceModelVec::AccessList list;
-  list.add(x);
-  list.add(gradient);
-  list.add(m_u_observed);
+  IceModelVec::AccessList list{&x, &gradient, &m_u_observed};
   if (m_weights) {
     list.add(*m_weights);
   }

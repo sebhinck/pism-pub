@@ -4,20 +4,22 @@
 // PISM Includes... want to be included first
 #include <petsc.h>
 
-#include <base/iceModel.hh>
-#include <base/util/IceGrid.hh>
+#include <pism/icemodel/IceModel.hh>
+#include <pism/util/IceGrid.hh>
 
-#include <base/util/pism_options.hh>
-#include <coupler/atmosphere/PAFactory.hh>
-#include <coupler/ocean/POFactory.hh>
-#include <coupler/surface/PSFactory.hh>
+#include <pism/util/pism_options.hh>
+#include <pism/coupler/atmosphere/Factory.hh>
+#include <pism/coupler/ocean/Factory.hh>
+#include <pism/coupler/surface/Factory.hh>
+#include <pism/hydrology/NullTransport.hh>
 
-#include <base/util/PISMTime.hh>
+#include <pism/util/Time.hh>
 // --------------------------------
-#include <icebin/IBSurfaceModel.hh>
-#include <icebin/MassEnergyBudget.hh>
-#include <icebin/NullTransportHydrology.hh>
+#include <pism/icebin/IBSurfaceModel.hh>
+#include <pism/icebin/MassEnergyBudget.hh>
 
+// Stuff defined in the icebin library
+// (NOT a dependency of ours)
 namespace icebin {
 namespace gpism {
 class IceModel_PISM;
@@ -67,10 +69,12 @@ protected:
 
 protected:
   // see iceModel.cc
-  virtual void createVecs();
+  virtual void allocate_storage();
 
 public:
-  virtual void massContExplicitStep();
+  virtual void massContExplicitStep(double dt,
+                                    const IceModelVec2Stag &diffusive_flux,
+                                    const IceModelVec2V &advective_velocity);
   virtual void accumulateFluxes_massContExplicitStep(int i, int j,
                                                      double surface_mass_balance, // [m s-1] ice equivalent (from PISM)
                                                      double meltrate_grounded,    // [m s-1] ice equivalent
@@ -115,10 +119,10 @@ public:
 
   /** @return Our instance of IBSurfaceModel */
   pism::icebin::IBSurfaceModel *ib_surface_model() {
-    return dynamic_cast<IBSurfaceModel *>(m_surface);
+    return dynamic_cast<IBSurfaceModel *>(m_surface.get());
   }
-  pism::icebin::NullTransportHydrology *null_hydrology() {
-    return dynamic_cast<NullTransportHydrology *>(pism::IceModel::m_subglacial_hydrology);
+  pism::hydrology::NullTransport* null_hydrology() {
+    return dynamic_cast<hydrology::NullTransport *>(pism::IceModel::m_subglacial_hydrology.get());
   }
 
 
@@ -131,11 +135,7 @@ public:
     return t_TempAge;
   }
 
-  // I added these...
-  void massContPreHook();
-  void massContPostHook();
-  // Pre and post for energy
-  void energyStep();
+  void energy_step();
 
   void prepare_outputs(double time_s);
 

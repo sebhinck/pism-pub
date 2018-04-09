@@ -83,10 +83,10 @@ def check_drift(file1, file2):
     nc1 = NC(file1)
     nc2 = NC(file2)
 
-    stored_drift = {'bwat_max': 0.024263951766380631,
-                    'bwp_max':  81658.173074602877,
-                    'bwp_avg':  7152.4179414459632,
-                    'bwat_avg': 0.004056179416920525}
+    stored_drift = {'bwat_max': 0.023524626576411189,
+                    'bwp_max':  79552.478734239354,
+                    'bwp_avg':  6261.1642337484445,
+                    'bwat_avg': 0.0034449380393343091}
 
     drift = {}
     for name in ("bwat", "bwp"):

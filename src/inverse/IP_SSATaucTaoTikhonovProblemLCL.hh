@@ -1,4 +1,4 @@
-// Copyright (C) 2012, 2014, 2015  David Maxwell and Constantine Khroulev
+// Copyright (C) 2012, 2014, 2015, 2016, 2017  David Maxwell and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -19,12 +19,13 @@
 #ifndef IP_SSATAUCTIKHONOVLCL_HH_39UGM4S2
 #define IP_SSATAUCTIKHONOVLCL_HH_39UGM4S2
 
+#include <memory>
+
 #include <petscsys.h>
 
-#include "base/util/pism_memory.hh"
 #include "TaoUtil.hh"
 #include "IPTwoBlockVec.hh"
-#include "base/util/iceModelVec.hh"
+#include "pism/util/iceModelVec.hh"
 #include "IP_SSATaucForwardProblem.hh"
 #include "functional/IPFunctional.hh"
 
@@ -45,7 +46,7 @@ class IP_SSATaucTaoTikhonovProblemLCL;
 class IP_SSATaucTaoTikhonovProblemLCLListener {
 public:
 
-  typedef PISM_SHARED_PTR(IP_SSATaucTaoTikhonovProblemLCLListener) Ptr;
+  typedef std::shared_ptr<IP_SSATaucTaoTikhonovProblemLCLListener> Ptr;
 
   typedef IceModelVec2S DesignVec;
   typedef IceModelVec2V StateVec;
@@ -124,11 +125,9 @@ public:
 
 protected:
 
-  void construct();
-
   IP_SSATaucForwardProblem &m_ssaforward;
 
-  std::auto_ptr<IPTwoBlockVec> m_x;
+  std::unique_ptr<IPTwoBlockVec> m_x;
 
   DesignVec m_dGlobal;
   DesignVec::Ptr m_d;

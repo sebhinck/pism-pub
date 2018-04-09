@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016 PISM Authors
+/* Copyright (C) 2015, 2016, 2017 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -18,7 +18,8 @@
  */
 
 #include "SIAFD_Regional.hh"
-#include "base/util/PISMVars.hh"
+#include "pism/stressbalance/StressBalance.hh"
+
 
 namespace pism {
 
@@ -40,21 +41,18 @@ void SIAFD_Regional::init() {
   m_log->message(2, "  using the regional version of the SIA solver...\n");
 }
 
-void SIAFD_Regional::compute_surface_gradient(IceModelVec2Stag &h_x, IceModelVec2Stag &h_y) const {
+void SIAFD_Regional::compute_surface_gradient(const Inputs &inputs,
+                                              IceModelVec2Stag &h_x, IceModelVec2Stag &h_y) const {
 
-  SIAFD::compute_surface_gradient(h_x, h_y);
+  SIAFD::compute_surface_gradient(inputs, h_x, h_y);
 
-  const IceModelVec2Int &nmm = *m_grid->variables().get_2d_mask("no_model_mask");
-  const IceModelVec2S &hst = *m_grid->variables().get_2d_scalar("usurfstore");
+  const IceModelVec2Int &nmm = *inputs.no_model_mask;
+  const IceModelVec2S &hst = *inputs.no_model_surface_elevation;
 
   const int Mx = m_grid->Mx(), My = m_grid->My();
   const double dx = m_grid->dx(), dy = m_grid->dy();  // convenience
 
-  IceModelVec::AccessList list;
-  list.add(h_x);
-  list.add(h_y);
-  list.add(nmm);
-  list.add(hst);
+  IceModelVec::AccessList list{&h_x, &h_y, &nmm, &hst};
 
   for (PointsWithGhosts p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();

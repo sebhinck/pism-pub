@@ -30,10 +30,13 @@ endmacro(pism_dont_use_rpath)
 
 # Set CMake variables to ensure that everything is static
 macro(pism_strictly_static)
+
+  if (BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "Please set BUILD_SHARED_LIBS to OFF.")
+  endif()
+
   set (CMAKE_SKIP_RPATH ON CACHE BOOL "Disable RPATH completely")
   set (CMAKE_FIND_LIBRARY_SUFFIXES .a)
-
-  set (BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared Pism libraries" FORCE)
 
   set (CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # get rid of -rdynamic
   set (CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "") # ditto
@@ -96,7 +99,7 @@ endmacro()
 
 # Set pedantic compiler flags
 macro(pism_set_pedantic_flags)
-  set (DEFAULT_PEDANTIC_FLAGS "-pedantic -Wall -Wextra -Wno-cast-qual -Wundef -Wshadow -Wpointer-arith -Wno-cast-align -Wwrite-strings -Wno-conversion -Wsign-compare -Wno-redundant-decls -Wno-inline -Wno-long-long -Wmissing-format-attribute -Wmissing-noreturn -Wpacked -Wdisabled-optimization -Wmultichar -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wendif-labels -Winvalid-pch -Wmissing-field-initializers -Wvariadic-macros -Wstrict-aliasing -funit-at-a-time")
+  set (DEFAULT_PEDANTIC_FLAGS "-pedantic -Wall -Wextra -Wno-cast-qual -Wundef -Wshadow -Wpointer-arith -Wno-cast-align -Wwrite-strings -Wno-conversion -Wsign-compare -Wno-redundant-decls -Wno-inline -Wno-long-long -Wmissing-format-attribute -Wmissing-noreturn -Wpacked -Wdisabled-optimization -Wmultichar -Wformat-nonliteral -Wformat-security -Wformat-y2k -Wendif-labels -Winvalid-pch -Wmissing-field-initializers -Wvariadic-macros -Wstrict-aliasing -funit-at-a-time -Wno-unknown-pragmas")
   set (DEFAULT_PEDANTIC_CFLAGS "${DEFAULT_PEDANTIC_FLAGS} -std=c99")
   set (DEFAULT_PEDANTIC_CXXFLAGS "${DEFAULT_PEDANTIC_FLAGS} -Woverloaded-virtual")
   set (PEDANTIC_CFLAGS ${DEFAULT_PEDANTIC_CFLAGS} CACHE STRING "Compiler flags to enable pedantic warnings")
@@ -134,12 +137,12 @@ macro(pism_find_prerequisites)
     set(Pism_PETSC_VERSION ${PETSC_VERSION} CACHE STRING "PETSc version")
     mark_as_advanced(Pism_PETSC_VERSION)
 
-    if (PETSC_VERSION VERSION_LESS 3.3)
+    if (PETSC_VERSION VERSION_LESS 3.5)
       # Force PISM to look for PETSc again if the version we just found
       # is too old:
       set(PETSC_CURRENT "OFF" CACHE BOOL "" FORCE)
       # Stop with an error message.
-      message(FATAL_ERROR "PISM requires PETSc version 3.3 or newer (found ${PETSC_VERSION}).")
+      message(FATAL_ERROR "PISM requires PETSc version 3.5 or newer (found ${PETSC_VERSION}).")
     endif()
 
     if (PETSC_VERSION VERSION_EQUAL 3.6.0)
@@ -160,32 +163,15 @@ macro(pism_find_prerequisites)
   find_package (GSL REQUIRED)
   find_package (NetCDF REQUIRED)
   find_package (FFTW REQUIRED)
+  find_package (HDF5 COMPONENTS C HL)
 
   # Optional libraries
   if (Pism_USE_PNETCDF)
     find_package (PNetCDF REQUIRED)
   endif()
 
-  if (Pism_USE_PARALLEL_HDF5)
-    find_package (HDF5 COMPONENTS C HL)
-
-    if(NOT HDF5_IS_PARALLEL)
-      set (Pism_USE_PARALLEL_HDF5 OFF CACHE BOOL "Enables parallel HDF5 I/O." FORCE)
-      message(FATAL_ERROR
-        "Selected HDF-5 library (include: ${HDF5_INCLUDE_DIR}, lib: ${HDF5_LIBRARIES}) does not support parallel I/O.")
-    endif()
-  endif()
-
   if (Pism_USE_PROJ4)
     find_package (PROJ4 REQUIRED)
-  endif()
-
-  # Use TAO included in PETSc 3.5.
-  if (Pism_PETSC_VERSION VERSION_LESS "3.5")
-    message(STATUS "Disabling TAO-based inversion tools. Install PETSc 3.5 or later to use them.")
-    set (Pism_USE_TAO OFF CACHE BOOL "Use TAO in inverse solvers." FORCE)
-  else()
-    message(STATUS "Building TAO-based inversion tools.")
   endif()
 
   if (Pism_USE_PARALLEL_NETCDF4)
@@ -250,7 +236,9 @@ macro(pism_set_dependencies)
     ${FFTW_LIBRARIES}
     ${GSL_LIBRARIES}
     ${NETCDF_LIBRARIES}
-    ${MPI_C_LIBRARIES})
+    ${MPI_C_LIBRARIES}
+    ${HDF5_LIBRARIES}
+    ${HDF5_HL_LIBRARIES})
 
   # optional libraries
   if (Pism_USE_JANSSON)
@@ -268,42 +256,11 @@ macro(pism_set_dependencies)
     list (APPEND Pism_EXTERNAL_LIBS ${PNETCDF_LIBRARIES})
   endif()
 
-  # Put HDF5 includes near the beginning of the list. (It is possible that the system has
-  # more than one HDF5 library installed--- one serial, built with NetCDF, and one parallel.
-  # We want to use the latter.)
-  if (Pism_USE_PARALLEL_HDF5)
-    include_directories (BEFORE ${HDF5_C_INCLUDE_DIR})
-    list (APPEND Pism_EXTERNAL_LIBS ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
-  endif()
-
   # Hide distracting CMake variables
   mark_as_advanced(file_cmd MPI_LIBRARY MPI_EXTRA_LIBRARY
     HDF5_C_LIBRARY_dl HDF5_C_LIBRARY_hdf5 HDF5_C_LIBRARY_hdf5_hl HDF5_C_LIBRARY_m HDF5_C_LIBRARY_z
     CMAKE_OSX_ARCHITECTURES CMAKE_OSX_DEPLOYMENT_TARGET CMAKE_OSX_SYSROOT
     MAKE_EXECUTABLE HDF5_DIR NETCDF_PAR_H)
-
-endmacro()
-
-include(CheckCXXSourceCompiles)
-
-# Check if shared_ptr is in <memory> as std::shared_ptr. If it is not,
-# assume that we have to use <tr1/memory> and std::tr1::shared_ptr.
-macro(pism_check_shared_ptr)
-  set(SHARED_PTR_TEST_SRC "
-#include <memory>
-
-int main(int argc, char **argv) {
-  std::shared_ptr<double> shared_double(new double);
-  return 0;
-}
-")
-  check_cxx_source_compiles("${SHARED_PTR_TEST_SRC}" PISM_SHARED_PTR)
-  if (PISM_SHARED_PTR)
-    set(Pism_USE_TR1 OFF CACHE BOOL "If 'ON', #include <tr1/memory>, otherwise #include <memory>.")
-  else()
-    set(Pism_USE_TR1 ON CACHE BOOL "If 'ON', #include <tr1/memory>, otherwise #include <memory>." FORCE)
-  endif()
-  mark_as_advanced(Pism_USE_TR1)
 
 endmacro()
 
@@ -322,6 +279,7 @@ show :
   execute_process (COMMAND ${MAKE_EXECUTABLE} --no-print-directory -f ${pism_petsc_config_makefile} show VARIABLE=${name}
     OUTPUT_VARIABLE ${var}
     RESULT_VARIABLE petsc_return)
+  string(CONFIGURE "\${${var}}" ${var} ESCAPE_QUOTES)
   file (REMOVE ${pism_petsc_config_makefile})
 endmacro (pism_petsc_get_variable)
 
@@ -344,6 +302,6 @@ macro(pism_set_version_info)
 
   if (Pism_BUILD_PYTHON_BINDINGS)
     add_definitions("-DPISM_SWIG_VERSION=\"${SWIG_VERSION}\"")
-    add_definitions("-DPISM_PETSC4PY_VERSION=\"${PETSC4PY_VERSION}\"")
+    add_definitions("-DPISM_PETSC4PY_VERSION=\"${Pism_PETSC4PY_VERSION}\"")
   endif()
 endmacro()

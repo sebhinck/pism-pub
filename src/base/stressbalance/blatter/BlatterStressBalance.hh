@@ -19,12 +19,12 @@
 #ifndef _BLATTERSTRESSBALANCE_H_
 #define _BLATTERSTRESSBALANCE_H_
 
-#include "base/stressbalance/ShallowStressBalance.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/iceModelVec3Custom.hh"
+#include "pism/stressbalance/ShallowStressBalance.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/iceModelVec3Custom.hh"
 
-#include "base/util/petscwrappers/DM.hh"
-#include "base/util/petscwrappers/SNES.hh"
+#include "pism/util/petscwrappers/DM.hh"
+#include "pism/util/petscwrappers/SNES.hh"
 
 #include "Blatter_implementation.h"
 
@@ -94,9 +94,7 @@ public:
 
   virtual std::string stdout_report() const;
 
-  virtual void update(bool fast,
-                      double sea_level,
-                      const IceModelVec2S &melange_back_pressure);
+  virtual void update(const Inputs &inputs, bool full_update);
 
   const IceModelVec3& velocity_u() const;
   const IceModelVec3& velocity_v() const;

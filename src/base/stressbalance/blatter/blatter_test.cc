@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2018 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -19,21 +19,22 @@
 static char help[] =
   "The executable for testing the Blatter stress balance solver.\n";
 
-#include "base/stressbalance/blatter/BlatterStressBalance.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/io/PIO.hh"
-#include "base/util/PISMVars.hh"
-#include "base/rheology/FlowLaw.hh"
-#include "base/enthalpyConverter.hh"
-#include "base/basalstrength/basal_resistance.hh"
-#include "base/util/pism_options.hh"
-#include "base/util/PISMTime.hh"
-#include "coupler/ocean/POConstant.hh"
-#include "base/util/error_handling.hh"
-#include "base/util/io/io_helpers.hh"
+#include "BlatterStressBalance.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/io/PIO.hh"
+#include "pism/util/Vars.hh"
+#include "pism/rheology/FlowLaw.hh"
+#include "pism/util/EnthalpyConverter.hh"
+#include "pism/basalstrength/basal_resistance.hh"
+#include "pism/util/pism_options.hh"
+#include "pism/util/Time.hh"
+#include "pism/coupler/ocean/Constant.hh"
+#include "pism/util/error_handling.hh"
+#include "pism/util/io/io_helpers.hh"
 
+#include "pism/stressbalance/StressBalance.hh"
 
-#include "base/util/petscwrappers/PetscInitializer.hh"
+#include "pism/util/petscwrappers/PetscInitializer.hh"
 
 using namespace pism;
 
@@ -145,23 +146,19 @@ int main(int argc, char *argv[]) {
 
     read_input_data(input_file, grid->variables(), EC);
 
-    IceModelVec2S melange_back_pressure;
-    melange_back_pressure.create(grid, "melange_back_pressure", WITHOUT_GHOSTS);
-    melange_back_pressure.set_attrs("boundary_condition",
-                                    "melange back pressure fraction",
-                                    "1", "");
-    melange_back_pressure.set(0.0);
+    // FIXME: I can get away with this because the current code does not use inputs.
+    stressbalance::Inputs inputs;
 
     PetscLogStagePush(cold);
     stressbalance::BlatterStressBalance blatter(grid);
     // Initialize the Blatter solver:
     blatter.init();
-    blatter.update(false, 0.0, melange_back_pressure);
+    blatter.update(inputs, true);
     PetscLogStagePop();
 
     if (options::Bool("-compare", "Compare 'cold' and 'hot' runs.")) {
       PetscLogStagePush(hot);
-      blatter.update(false, 0.0, melange_back_pressure);
+      blatter.update(inputs, true);
       PetscLogStagePop();
     }
 

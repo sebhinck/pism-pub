@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016 PISM Authors
+/* Copyright (C) 2015, 2016, 2017 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -18,7 +18,8 @@
  */
 
 #include "SSAFD_Regional.hh"
-#include "base/util/PISMVars.hh"
+#include "pism/util/Vars.hh"
+#include "pism/stressbalance/StressBalance.hh"
 
 namespace pism {
 
@@ -26,7 +27,10 @@ namespace stressbalance {
 
 SSAFD_Regional::SSAFD_Regional(IceGrid::ConstPtr g)
   : SSAFD(g) {
-  // empty
+
+  m_h_stored      = NULL;
+  m_H_stored      = NULL;
+  m_no_model_mask = NULL;
 }
 
 SSAFD_Regional::~SSAFD_Regional() {
@@ -44,26 +48,34 @@ void SSAFD_Regional::init() {
   }
 }
 
-void SSAFD_Regional::compute_driving_stress(IceModelVec2V &result) const {
+void SSAFD_Regional::update(const Inputs &inputs, bool full_update) {
+  m_h_stored      = inputs.no_model_surface_elevation;
+  m_H_stored      = inputs.no_model_ice_thickness;
+  m_no_model_mask = inputs.no_model_mask;
 
-  SSAFD::compute_driving_stress(result);
+  SSA::update(inputs, full_update);
 
-  const IceModelVec2Int &nmm = *m_grid->variables().get_2d_mask("no_model_mask");
+  m_h_stored      = NULL;
+  m_H_stored      = NULL;
+  m_no_model_mask = NULL;
+}
+
+void SSAFD_Regional::compute_driving_stress(const Geometry &geometry, IceModelVec2V &result) const {
+
+  SSAFD::compute_driving_stress(geometry, result);
+
+  const IceModelVec2Int &nmm = *m_no_model_mask;
 
   const IceModelVec2S
-    *usurfstore = m_grid->variables().get_2d_scalar("usurfstore"),
-    *thkstore   = m_grid->variables().get_2d_scalar("thkstore");
+    &usurfstore = *m_h_stored,
+    &thkstore   = *m_H_stored;
 
-  IceModelVec::AccessList list;
-  list.add(result);
-  list.add(nmm);
-  list.add(*usurfstore);
-  list.add(*thkstore);
+  IceModelVec::AccessList list{&result, &nmm, &usurfstore, &thkstore};
 
   for (Points p(*m_grid); p; p.next()) {
     const int i = p.i(), j = p.j();
 
-    double pressure = m_EC->pressure((*thkstore)(i,j));
+    double pressure = m_EC->pressure(thkstore(i,j));
     if (pressure <= 0) {
       pressure = 0;
     }
@@ -72,7 +84,7 @@ void SSAFD_Regional::compute_driving_stress(IceModelVec2V &result) const {
       if (i - 1 < 0 || i + 1 > (int)m_grid->Mx() - 1) {
         result(i, j).u = 0;
       } else {
-        result(i, j).u = - pressure * usurfstore->diff_x(i,j);
+        result(i, j).u = - pressure * usurfstore.diff_x(i,j);
       }
     }
 
@@ -80,7 +92,7 @@ void SSAFD_Regional::compute_driving_stress(IceModelVec2V &result) const {
       if (j - 1 < 0 || j + 1 > (int)m_grid->My() - 1) {
         result(i, j).v = 0;
       } else {
-        result(i, j).v = - pressure * usurfstore->diff_y(i,j);
+        result(i, j).v = - pressure * usurfstore.diff_y(i,j);
       }
     }
   }

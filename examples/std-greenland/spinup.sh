@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (C) 2009-2015 The PISM Authors
+# Copyright (C) 2009-2015, 2017 The PISM Authors
 
 # PISM Greenland spinup using either constant present-day climate or modeled
 # paleoclimate.  See README.md.
@@ -54,11 +54,11 @@ consider setting optional environment variables (see script for meaning):
     PARAM_NOSGL  if set, DON'T use -tauc_slippery_grounding_lines
     PISM_DO      set to 'echo' if no run desired; defaults to empty
     PISM_MPIDO   defaults to 'mpiexec -n'
-    PISM_PREFIX  set to path to pismr executable if desired; defaults to empty
+    PISM_BIN  set to path to pismr executable if desired; defaults to empty
     PISM_EXEC    defaults to 'pismr'
     REGRIDFILE   set to file name to regrid from; defaults to empty (no regrid)
     REGRIDVARS   desired -regrid_vars; applies *if* REGRIDFILE set;
-                   defaults to 'bmelt,enthalpy,litho_temp,thk,tillwat'
+                   defaults to 'basal_melt_rate_grounded,enthalpy,litho_temp,thk,tillwat'
 
 example usage 1:
 
@@ -152,6 +152,8 @@ else
   exit
 fi
 
+grid="-Mx $myMx -My $myMy $vgrid -grid.correct_cell_areas false -grid.registration corner"
+
 # set stress balance from argument 5
 if [ -n "${PARAM_SIAE:+1}" ] ; then  # check if env var is already set
   PHYS="-calving ocean_kill -ocean_kill_file ${PISM_DATANAME} -sia_e ${PARAM_SIAE}"
@@ -241,11 +243,11 @@ else
 fi
 
 # prefix to pism (not to executables)
-if [ -n "${PISM_PREFIX:+1}" ] ; then  # check if env var is already set
-  echo "$SCRIPTNAME     PISM_PREFIX = $PISM_PREFIX  (already set)"
+if [ -n "${PISM_BIN:+1}" ] ; then  # check if env var is already set
+  echo "$SCRIPTNAME     PISM_BIN = $PISM_BIN  (already set)"
 else
-  PISM_PREFIX=""    # just a guess
-  echo "$SCRIPTNAME     PISM_PREFIX = $PISM_PREFIX"
+  PISM_BIN=""    # just a guess
+  echo "$SCRIPTNAME     PISM_BIN = $PISM_BIN"
 fi
 
 # set PISM_EXEC if using different executables, for example:
@@ -282,21 +284,17 @@ if [ -n "${REGRIDFILE:+1}" ] ; then  # check if env var is already set
   if [ -n "${REGRIDVARS:+1}" ] ; then  # check if env var is already set
     echo "$SCRIPTNAME      REGRIDVARS = $REGRIDVARS  (already set)"
   else
-    REGRIDVARS='litho_temp,thk,enthalpy,tillwat,bmelt'
+    REGRIDVARS='litho_temp,thk,enthalpy,tillwat,basal_melt_rate_grounded'
     # note: other vars which are "state":  Href, dbdt, shelfbtemp, shelfbmassflux
     echo "$SCRIPTNAME      REGRIDVARS = $REGRIDVARS"
   fi
   regridcommand="-regrid_file $REGRIDFILE -regrid_vars $REGRIDVARS"
-  # -regrid_bed_special not used here because hard-to-explain and not documented
-  #if [ "$2" = "paleo" ]; then
-  #  regridcommand="$regridcommand -regrid_bed_special"
-  #fi
 else
   regridcommand=""
 fi
 
 # show remaining setup options:
-PISM="${PISM_PREFIX}${PISM_EXEC}"
+PISM="${PISM_BIN}${PISM_EXEC}"
 echo "$SCRIPTNAME      executable = '$PISM'"
 echo "$SCRIPTNAME         coupler = '$COUPLER'"
 echo "$SCRIPTNAME        dynamics = '$PHYS'"
@@ -314,7 +312,7 @@ else
 fi
 
 # construct command
-cmd="$PISM_MPIDO $NN $PISM -i $INNAME -bootstrap -Mx $myMx -My $myMy $vgrid $RUNSTARTEND $regridcommand $COUPLER $PHYS $DIAGNOSTICS -o $OUTNAME"
+cmd="$PISM_MPIDO $NN $PISM -i $INNAME -bootstrap ${grid} $RUNSTARTEND $regridcommand $COUPLER $PHYS $DIAGNOSTICS -o $OUTNAME"
 echo
 $PISM_DO $cmd
 

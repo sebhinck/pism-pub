@@ -1,4 +1,4 @@
-// Copyright (C) 2012, 2014, 2015, 2016  David Maxwell
+// Copyright (C) 2012, 2014, 2015, 2016, 2017  David Maxwell
 //
 // This file is part of PISM.
 //
@@ -17,9 +17,8 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "IPMeanSquareFunctional.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/pism_const.hh"
-#include "base/util/pism_utilities.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/pism_utilities.hh"
 
 namespace pism {
 namespace inverse {
@@ -36,8 +35,8 @@ void IPMeanSquareFunctional2V::normalize(double scale) {
   double value = 0;
 
   if (m_weights) {
-    IceModelVec::AccessList list;
-    list.add(*m_weights);
+    IceModelVec::AccessList list{m_weights};
+
     for (Points p(*m_grid); p; p.next()) {
       const int i = p.i(), j = p.j();
 
@@ -58,8 +57,7 @@ void IPMeanSquareFunctional2V::valueAt(IceModelVec2V &x, double *OUTPUT)  {
   // The value of the objective
   double value = 0;
 
-  IceModelVec::AccessList list;
-  list.add(x);
+  IceModelVec::AccessList list{&x};
 
   if (m_weights) {
     list.add(*m_weights);
@@ -87,9 +85,7 @@ void IPMeanSquareFunctional2V::dot(IceModelVec2V &a, IceModelVec2V &b, double *O
   // The value of the objective
   double value = 0;
 
-  IceModelVec::AccessList list;
-  list.add(a);
-  list.add(b);
+  IceModelVec::AccessList list{&a, &b};
 
   if (m_weights) {
     list.add(*m_weights);
@@ -117,9 +113,7 @@ void IPMeanSquareFunctional2V::dot(IceModelVec2V &a, IceModelVec2V &b, double *O
 void IPMeanSquareFunctional2V::gradientAt(IceModelVec2V &x, IceModelVec2V &gradient)  {
   gradient.set(0);
 
-  IceModelVec::AccessList list;
-  list.add(x);
-  list.add(gradient);
+  IceModelVec::AccessList list{&x, &gradient};
 
   if (m_weights) {
     list.add(*m_weights);
@@ -200,9 +194,7 @@ void IPMeanSquareFunctional2S::dot(IceModelVec2S &a, IceModelVec2S &b, double *O
   // The value of the objective
   double value = 0;
 
-  IceModelVec::AccessList list;
-  list.add(a);
-  list.add(b);
+  IceModelVec::AccessList list{&a, &b};
 
   if (m_weights) {
     list.add(*m_weights);
@@ -227,9 +219,7 @@ void IPMeanSquareFunctional2S::dot(IceModelVec2S &a, IceModelVec2S &b, double *O
 void IPMeanSquareFunctional2S::gradientAt(IceModelVec2S &x, IceModelVec2S &gradient)  {
   gradient.set(0);
 
-  IceModelVec::AccessList list;
-  list.add(x);
-  list.add(gradient);
+  IceModelVec::AccessList list{&x, &gradient};
 
   if (m_weights) {
     list.add(*m_weights);

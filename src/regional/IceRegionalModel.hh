@@ -1,4 +1,4 @@
-/* Copyright (C) 2015, 2016 PISM Authors
+/* Copyright (C) 2015, 2016, 2017 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -20,7 +20,7 @@
 #ifndef _ICEREGIONALMODEL_H_
 #define _ICEREGIONALMODEL_H_
 
-#include "base/iceModel.hh"
+#include "pism/icemodel/IceModel.hh"
 
 namespace pism {
 
@@ -31,21 +31,22 @@ public:
   IceRegionalModel(IceGrid::Ptr g, Context::Ptr c);
 protected:
   virtual void bootstrap_2d(const PIO &input_file);
-  virtual void restart_2d(const PIO &input_file, unsigned int record);
-  virtual void model_state_setup();
-  virtual void createVecs();
-  virtual void allocate_stressbalance();
-  virtual void allocate_basal_yield_stress();
-  virtual void massContExplicitStep();
-  virtual void cell_interface_fluxes(bool dirichlet_bc,
-                                     int i, int j,
-                                     StarStencil<Vector2> input_velocity,
-                                     StarStencil<double> input_flux,
-                                     StarStencil<double> &output_velocity,
-                                     StarStencil<double> &output_flux);
+
+  void allocate_geometry_evolution();
+  void allocate_storage();
+  void allocate_stressbalance();
+  void allocate_basal_yield_stress();
+  void allocate_energy_model();
+  void model_state_setup();
+
+  stressbalance::Inputs stress_balance_inputs();
+  energy::Inputs energy_model_inputs();
+  YieldStressInputs yield_stress_inputs();
+
 private:
   IceModelVec2Int m_no_model_mask;
-  IceModelVec2S   m_usurf_stored, m_thk_stored;
+  IceModelVec2S   m_usurf_stored;
+  IceModelVec2S   m_thk_stored;
 };
 
 } // end of namespace pism

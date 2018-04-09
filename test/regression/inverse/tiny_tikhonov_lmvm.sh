@@ -1,6 +1,6 @@
 #!/bin/bash
 # Tests a simple inversion setup.
-# Requires PISM's Python bindings and TAO.
+# Requires PISM's Python bindings
 PYTHONEXEC=$5
 PISM_BUILD_DIR=$1
 
@@ -26,5 +26,4 @@ $PYTHONEXEC pismi.py \
               -inv_method tikhonov_lmvm -tikhonov_penalty 3e-2 -report_coverage
 
 # Check if we succeeded
-$PYTHONEXEC verify_ssa_inv.py tiny_tikhonov_lmvm.nc --desired_misfit 13.5 --misfit_tolerance .5 --iter_max 75
-
+$PYTHONEXEC verify_ssa_inv.py tiny_tikhonov_lmvm.nc --desired_misfit 13.7 --misfit_tolerance .5 --iter_max 75

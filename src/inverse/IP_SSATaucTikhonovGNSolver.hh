@@ -1,4 +1,4 @@
-// Copyright (C) 2012, 2014, 2015, 2016  David Maxwell
+// Copyright (C) 2012, 2014, 2015, 2016, 2017  David Maxwell
 //
 // This file is part of PISM.
 //
@@ -20,10 +20,10 @@
 #define IP_SSATAUCTIKHONOVGN_HH_SIU7F33G
 
 #include "IP_SSATaucForwardProblem.hh"
-#include "base/util/TerminationReason.hh"
-#include "base/util/error_handling.hh"
-#include "base/util/iceModelVec.hh"
-#include "base/util/petscwrappers/KSP.hh"
+#include "pism/util/TerminationReason.hh"
+#include "pism/util/error_handling.hh"
+#include "pism/util/iceModelVec.hh"
+#include "pism/util/petscwrappers/KSP.hh"
 #include "functional/IPFunctional.hh"
 
 namespace pism {
@@ -105,8 +105,6 @@ protected:
   virtual TerminationReason::Ptr compute_dlogalpha(double *dalpha);
 
   virtual TerminationReason::Ptr linesearch();
-
-  void construct();
 
   IP_SSATaucForwardProblem &m_ssaforward;
 

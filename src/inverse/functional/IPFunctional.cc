@@ -1,4 +1,4 @@
-// Copyright (C) 2012, 2013, 2014, 2015  David Maxwell
+// Copyright (C) 2012, 2013, 2014, 2015, 2017  David Maxwell
 //
 // This file is part of PISM.
 //
@@ -17,14 +17,14 @@
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "IPFunctional.hh"
-#include "base/util/IceGrid.hh"
-#include "base/util/error_handling.hh"
+#include "pism/util/IceGrid.hh"
+#include "pism/util/error_handling.hh"
 
 namespace pism {
 namespace inverse {
 
 void gradientFD(IPFunctional<IceModelVec2S> &f, IceModelVec2S &x, IceModelVec2S &gradient) {
-  const IceGrid &grid = *x.get_grid();
+  const IceGrid &grid = *x.grid();
   double h = PETSC_SQRT_MACHINE_EPSILON;
 
   double F0,Fh;
@@ -61,7 +61,7 @@ void gradientFD(IPFunctional<IceModelVec2S> &f, IceModelVec2S &x, IceModelVec2S 
 }
 
 void gradientFD(IPFunctional<IceModelVec2V> &f, IceModelVec2V &x, IceModelVec2V &gradient) {
-  const IceGrid &grid = *x.get_grid();
+  const IceGrid &grid = *x.grid();
   double h = PETSC_SQRT_MACHINE_EPSILON;
 
   double F0,Fh;

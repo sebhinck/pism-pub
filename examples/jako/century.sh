@@ -36,11 +36,11 @@ else
 fi
 
 # prefix to pism (not to executables)
-if [ -n "${PISM_PREFIX:+1}" ] ; then  # check if env var is already set
-  echo "$SCRIPTNAME     PISM_PREFIX = $PISM_PREFIX  (already set)"
+if [ -n "${PISM_BIN:+1}" ] ; then  # check if env var is already set
+  echo "$SCRIPTNAME     PISM_BIN = $PISM_BIN  (already set)"
 else
-  PISM_PREFIX=""    # just a guess
-  echo "$SCRIPTNAME     PISM_PREFIX = $PISM_PREFIX"
+  PISM_BIN=""    # just a guess
+  echo "$SCRIPTNAME     PISM_BIN = $PISM_BIN"
 fi
 
 # set PISM_EXEC if using different executables, for example:
@@ -48,7 +48,7 @@ fi
 if [ -n "${PISM_EXEC:+1}" ] ; then  # check if env var is already set
   echo "$SCRIPTNAME       PISM_EXEC = $PISM_EXEC  (already set)"
 else
-  PISM_EXEC="pismo"
+  PISM_EXEC="pismr -regional"
   echo "$SCRIPTNAME       PISM_EXEC = $PISM_EXEC"
 fi
 
@@ -76,7 +76,7 @@ echo
 cmd="$PISM_MPIDO $NN $PISM_EXEC -i $BOOT -bootstrap  \
   -Mx $Mx -My $My -Lz 4000 -Lbz 1000 -Mz $Mz -Mbz $Mbz -z_spacing equal \
   -no_model_strip 10 $PHYS \
-  -ssa_dirichlet_bc -regrid_file $PREFILE -regrid_vars thk,bmelt,tillwat,enthalpy,litho_temp,vel_ssa_bc \
+  -ssa_dirichlet_bc -regrid_file $PREFILE -regrid_vars thk,basal_melt_rate_grounded,tillwat,enthalpy,litho_temp,vel_ssa_bc \
   $CLIMATE -y 0.01 -o jakofine_short.nc"
 $PISM_DO $cmd
 

@@ -1,5 +1,5 @@
 # Subclasses for regional problems.
-add_library (pismregional OBJECT
+add_library (regional OBJECT
   SIAFD_Regional.cc
   SSAFD_Regional.cc
   RegionalDefaultYieldStress.cc
@@ -7,8 +7,3 @@ add_library (pismregional OBJECT
   IceGrid_Regional.cc
   EnthalpyModel_Regional.cc
   )
-
-# Outlet glacier 
-add_executable (pismo pismo.cc)
-target_link_libraries (pismo pism)
-install (TARGETS pismo DESTINATION ${Pism_BIN_DIR})
