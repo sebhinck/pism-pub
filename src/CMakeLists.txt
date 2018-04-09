@@ -171,7 +171,6 @@ add_subdirectory (inverse)
 add_subdirectory (regional)
 add_subdirectory (rheology)
 add_subdirectory (stressbalance)
-add_subdirectory (base/stressbalance/blatter)
 add_subdirectory (util)
 add_subdirectory (verification)
 

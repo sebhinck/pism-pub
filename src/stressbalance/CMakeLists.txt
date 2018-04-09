@@ -25,3 +25,5 @@ if (Pism_BUILD_EXTRA_EXECS)
 endif ()
 
 add_subdirectory (ssa/tests)
+
+add_subdirectory (blatter)
