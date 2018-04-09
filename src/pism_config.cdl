@@ -1402,6 +1402,12 @@ netcdf pism_config {
     pism_config:stress_balance.ssa.dirichlet_bc_option = "ssa_dirichlet_bc";
     pism_config:stress_balance.ssa.dirichlet_bc_type = "boolean";
 
+    pism_config:stress_balance.ssa.enhancement_factor = 1.0;
+    pism_config:stress_balance.ssa.enhancement_factor_doc = "Flow enhancement factor for SSA";
+    pism_config:stress_balance.ssa.enhancement_factor_option = "ssa_e";
+    pism_config:stress_balance.ssa.enhancement_factor_type = "scalar";
+    pism_config:stress_balance.ssa.enhancement_factor_units = "1";
+
     pism_config:stress_balance.ssa.enhancement_factor_interglacial = 1.0;
     pism_config:stress_balance.ssa.enhancement_factor_interglacial_doc = "Flow enhancement factor for SSA; used for ice accumulated during interglacial periods.";
     pism_config:stress_balance.ssa.enhancement_factor_interglacial_option = "ssa_e_interglacial";
