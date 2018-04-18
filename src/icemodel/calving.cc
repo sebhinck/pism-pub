@@ -1,4 +1,4 @@
-// Copyright (C) 2004--2017 Torsten Albrecht and Constantine Khroulev
+// Copyright (C) 2004--2018 Torsten Albrecht and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -22,7 +22,6 @@
 #include "pism/util/Mask.hh"
 #include "pism/util/ConfigInterface.hh"
 #include "pism/util/pism_utilities.hh"
-#include "pism/coupler/OceanModel.hh"
 
 #include "pism/calving/CalvingAtThickness.hh"
 #include "pism/calving/EigenCalving.hh"
@@ -32,18 +31,29 @@
 #include "pism/calving/IcebergRemover.hh"
 #include "pism/calving/OceanKill.hh"
 
+#include "pism/energy/EnergyModel.hh"
+#include "pism/coupler/OceanModel.hh"
+#include "pism/stressbalance/ShallowStressBalance.hh"
+
 namespace pism {
 
 void IceModel::do_calving() {
+
+  CalvingInputs inputs;
+
+  inputs.geometry = &m_geometry;
+  inputs.bc_mask  = &m_ssa_dirichlet_bc_mask;
+
+  inputs.ice_velocity         = &m_stress_balance->shallow()->velocity();
+  inputs.ice_enthalpy         = &m_energy_model->enthalpy();
+  inputs.shelf_base_mass_flux = &m_ocean->shelf_base_mass_flux();
 
   // eigen-calving should go first: it uses the ice velocity field,
   // which is defined at grid points that were icy at the *beginning*
   // of a time-step.
   if (m_eigen_calving) {
     m_eigen_calving->update(m_dt,
-                            m_ocean->sea_level_elevation(),
-                            m_ssa_dirichlet_bc_mask,
-                            m_geometry.bed_elevation,
+                            inputs,
                             m_geometry.cell_type,
                             m_geometry.ice_area_specific_volume,
                             m_geometry.ice_thickness);
@@ -51,9 +61,7 @@ void IceModel::do_calving() {
 
   if (m_vonmises_calving) {
     m_vonmises_calving->update(m_dt,
-                               m_ocean->sea_level_elevation(),
-                               m_ssa_dirichlet_bc_mask,
-                               m_geometry.bed_elevation,
+                               inputs,
                                m_geometry.cell_type,
                                m_geometry.ice_area_specific_volume,
                                m_geometry.ice_thickness);
@@ -61,9 +69,7 @@ void IceModel::do_calving() {
 
   if (m_frontal_melt) {
     m_frontal_melt->update(m_dt,
-                           m_ocean->sea_level_elevation(),
-                           m_ssa_dirichlet_bc_mask,
-                           m_geometry.bed_elevation,
+                           inputs,
                            m_geometry.cell_type,
                            m_geometry.ice_area_specific_volume,
                            m_geometry.ice_thickness);

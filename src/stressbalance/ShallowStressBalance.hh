@@ -1,4 +1,4 @@
-// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017 Constantine Khroulev and Ed Bueler
+// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 Constantine Khroulev and Ed Bueler
 //
 // This file is part of PISM.
 //
@@ -74,7 +74,7 @@ public:
   //! \brief Produce a report string for the standard output.
   virtual std::string stdout_report() const;
 
-  const rheology::FlowLaw* flow_law() const;
+  std::shared_ptr<const rheology::FlowLaw> flow_law() const;
 
   EnthalpyConverter::Ptr enthalpy_converter() const;
 
@@ -82,10 +82,10 @@ public:
 protected:
   virtual void init_impl();
   
-  virtual std::map<std::string, Diagnostic::Ptr> diagnostics_impl() const;
+  virtual DiagnosticList diagnostics_impl() const;
 
   IceBasalResistancePlasticLaw *m_basal_sliding_law;
-  rheology::FlowLaw *m_flow_law;
+  std::shared_ptr<rheology::FlowLaw> m_flow_law;
   EnthalpyConverter::Ptr m_EC;
 
   IceModelVec2V m_velocity;

@@ -1,4 +1,4 @@
-// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017 Constantine Khroulev and Ed Bueler
+// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 Constantine Khroulev and Ed Bueler
 //
 // This file is part of PISM.
 //
@@ -35,7 +35,6 @@ namespace pism {
 namespace stressbalance {
 
 Inputs::Inputs() {
-  sea_level = 0.0;
   geometry = NULL;
   new_bed_elevation = true;
 
@@ -433,7 +432,7 @@ static inline double D2(double u_x, double u_y, double u_z, double v_x, double v
 void StressBalance::compute_volumetric_strain_heating(const Inputs &inputs) {
   PetscErrorCode ierr;
 
-  const rheology::FlowLaw *flow_law = m_shallow_stress_balance->flow_law();
+  const rheology::FlowLaw &flow_law = *m_shallow_stress_balance->flow_law();
   EnthalpyConverter::Ptr EC = m_shallow_stress_balance->enthalpy_converter();
 
   const IceModelVec3
@@ -446,8 +445,8 @@ void StressBalance::compute_volumetric_strain_heating(const Inputs &inputs) {
   const IceModelVec2CellType &mask = inputs.geometry->cell_type;
 
   double
-    enhancement_factor = flow_law->enhancement_factor(),
-    n = flow_law->exponent(),
+    enhancement_factor = flow_law.enhancement_factor(),
+    n = flow_law.exponent(),
     exponent = 0.5 * (1.0 / n + 1.0),
     e_to_a_power = pow(enhancement_factor,-1.0/n);
 
@@ -529,7 +528,7 @@ void StressBalance::compute_volumetric_strain_heating(const Inputs &inputs) {
       // current level and the top of the column)
       EC->pressure(depth, ks, pressure); // FIXME issue #15
 
-      flow_law->hardness_n(E_ij, &pressure[0], ks + 1, &hardness[0]);
+      flow_law.hardness_n(E_ij, &pressure[0], ks + 1, &hardness[0]);
 
       for (int k = 0; k <= ks; ++k) {
         double dz;

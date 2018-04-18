@@ -1,4 +1,4 @@
-// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017 Constantine Khroulev
+// Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -32,8 +32,8 @@ namespace stressbalance {
 
 using units::convert;
 
-std::map<std::string, Diagnostic::Ptr> StressBalance::diagnostics_impl() const {
-  std::map<std::string, Diagnostic::Ptr> result = {
+DiagnosticList StressBalance::diagnostics_impl() const {
+  DiagnosticList result = {
     {"bfrict",              Diagnostic::Ptr(new PSB_bfrict(this))},
     {"velbar_mag",          Diagnostic::Ptr(new PSB_velbar_mag(this))},
     {"flux",                Diagnostic::Ptr(new PSB_flux(this))},
@@ -65,7 +65,7 @@ std::map<std::string, Diagnostic::Ptr> StressBalance::diagnostics_impl() const {
   return result;
 }
 
-std::map<std::string, TSDiagnostic::Ptr> StressBalance::ts_diagnostics_impl() const {
+TSDiagnosticList StressBalance::ts_diagnostics_impl() const {
   return pism::combine(m_shallow_stress_balance->ts_diagnostics(),
                        m_modifier->ts_diagnostics());
 }
@@ -693,42 +693,52 @@ PSB_uvel::PSB_uvel(const StressBalance *m)
             "m s-1", "m year-1", 0);
 }
 
-IceModelVec::Ptr PSB_uvel::compute_impl() const {
+/*!
+ * Copy F to result and set it to zero above the surface of the ice.
+ */
+static void zero_above_ice(const IceModelVec3 &F, const IceModelVec2S &H,
+                           IceModelVec3 &result) {
 
-  IceModelVec3::Ptr result(new IceModelVec3);
-  result->create(m_grid, "uvel", WITHOUT_GHOSTS);
-  result->metadata() = m_vars[0];
+  IceModelVec::AccessList list{&F, &H, &result};
 
-  const IceModelVec2S *thickness = m_grid->variables().get_2d_scalar("land_ice_thickness");
+  IceGrid::ConstPtr grid = result.grid();
 
-  const IceModelVec3
-    &u3 = model->velocity_u();
+  auto Mz = grid->Mz();
 
-  IceModelVec::AccessList list{&u3, thickness, result.get()};
-
-  ParallelSection loop(m_grid->com);
+  ParallelSection loop(grid->com);
   try {
-    for (Points p(*m_grid); p; p.next()) {
+    for (Points p(*grid); p; p.next()) {
       const int i = p.i(), j = p.j();
 
-      int ks = m_grid->kBelowHeight((*thickness)(i,j));
+      int ks = grid->kBelowHeight(H(i,j));
 
-      const double *u_ij = u3.get_column(i,j);
-      double *u_out_ij = result->get_column(i,j);
+      const double *F_ij = F.get_column(i,j);
+      double *F_out_ij = result.get_column(i,j);
 
       // in the ice:
       for (int k = 0; k <= ks ; k++) {
-        u_out_ij[k] = u_ij[k];
+        F_out_ij[k] = F_ij[k];
       }
       // above the ice:
-      for (unsigned int k = ks+1; k < m_grid->Mz() ; k++) {
-        u_out_ij[k] = 0.0;
+      for (unsigned int k = ks+1; k < Mz ; k++) {
+        F_out_ij[k] = 0.0;
       }
     }
   } catch (...) {
     loop.failed();
   }
   loop.check();
+}
+
+IceModelVec::Ptr PSB_uvel::compute_impl() const {
+
+  IceModelVec3::Ptr result(new IceModelVec3);
+  result->create(m_grid, "uvel", WITHOUT_GHOSTS);
+  result->metadata() = m_vars[0];
+
+  zero_above_ice(model->velocity_u(),
+                 *m_grid->variables().get_2d_scalar("land_ice_thickness"),
+                 *result);
 
   return result;
 }
@@ -749,36 +759,9 @@ IceModelVec::Ptr PSB_vvel::compute_impl() const {
   result->create(m_grid, "vvel", WITHOUT_GHOSTS);
   result->metadata() = m_vars[0];
 
-  const IceModelVec2S *thickness = m_grid->variables().get_2d_scalar("land_ice_thickness");
-
-  const IceModelVec3
-    &v3 = model->velocity_v();
-
-  IceModelVec::AccessList list{&v3, thickness, result.get()};
-
-  ParallelSection loop(m_grid->com);
-  try {
-    for (Points p(*m_grid); p; p.next()) {
-      const int i = p.i(), j = p.j();
-
-      int ks = m_grid->kBelowHeight((*thickness)(i,j));
-
-      const double *v_ij = v3.get_column(i,j);
-      double *v_out_ij = result->get_column(i,j);
-
-      // in the ice:
-      for (int k = 0; k <= ks ; k++) {
-        v_out_ij[k] = v_ij[k];
-      }
-      // above the ice:
-      for (unsigned int k = ks+1; k < m_grid->Mz() ; k++) {
-        v_out_ij[k] = 0.0;
-      }
-    }
-  } catch (...) {
-    loop.failed();
-  }
-  loop.check();
+  zero_above_ice(model->velocity_v(),
+                 *m_grid->variables().get_2d_scalar("land_ice_thickness"),
+                 *result);
 
   return result;
 }
@@ -799,37 +782,9 @@ IceModelVec::Ptr PSB_wvel_rel::compute_impl() const {
   result->create(m_grid, "wvel_rel", WITHOUT_GHOSTS);
   result->metadata() = m_vars[0];
 
-  const IceModelVec2S *thickness = m_grid->variables().get_2d_scalar("land_ice_thickness");
-
-  const IceModelVec3
-    &w3 = model->velocity_w();
-
-  IceModelVec::AccessList list{&w3, thickness, result.get()};
-
-  ParallelSection loop(m_grid->com);
-  try {
-    for (Points p(*m_grid); p; p.next()) {
-      const int i = p.i(), j = p.j();
-
-      int ks = m_grid->kBelowHeight((*thickness)(i,j));
-
-      const double *w_ij = w3.get_column(i,j);
-      double *w_out_ij = result->get_column(i,j);
-
-      // in the ice:
-      for (int k = 0; k <= ks ; k++) {
-        w_out_ij[k] = w_ij[k];
-      }
-      // above the ice:
-      for (unsigned int k = ks+1; k < m_grid->Mz() ; k++) {
-        w_out_ij[k] = 0.0;
-      }
-    }
-  } catch (...) {
-    loop.failed();
-  }
-  loop.check();
-
+  zero_above_ice(model->velocity_w(),
+                 *m_grid->variables().get_2d_scalar("land_ice_thickness"),
+                 *result);
 
   return result;
 }
@@ -1119,10 +1074,10 @@ IceModelVec::Ptr PSB_vonmises_stress::compute_impl() const {
   const IceModelVec3 *enthalpy = m_grid->variables().get_3d_scalar("enthalpy");
   const IceModelVec2CellType &mask = *m_grid->variables().get_2d_cell_type("mask");
 
-  const rheology::FlowLaw* flow_law = model->shallow()->flow_law();
+  const rheology::FlowLaw &flow_law = *model->shallow()->flow_law();
 
   const double *z = &m_grid->z()[0];
-  const double ssa_n = flow_law->exponent();
+  const double ssa_n = flow_law.exponent();
 
   IceModelVec::AccessList list{&vonmises_stress, &velocity, &strain_rates, &ice_thickness,
       enthalpy, &mask};
@@ -1139,7 +1094,7 @@ IceModelVec::Ptr PSB_vonmises_stress::compute_impl() const {
 
       const double
         *enthalpy_column   = enthalpy->get_column(i, j),
-        hardness           = averaged_hardness(*flow_law, H, k, z, enthalpy_column),
+        hardness           = averaged_hardness(flow_law, H, k, z, enthalpy_column),
         eigen1             = strain_rates(i, j, 0),
         eigen2             = strain_rates(i, j, 1);
 

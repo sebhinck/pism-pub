@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017 Ed Bueler and Constantine Khroulev
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -16,7 +16,7 @@
 // along with PISM; if not, write to the Free Software
 // Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-#include <gsl/gsl_math.h>
+#include <gsl/gsl_math.h>       // GSL_NAN
 
 #include "BedThermalUnit.hh"
 #include "pism/util/io/PIO.hh"
@@ -43,7 +43,7 @@ BTUGrid::BTUGrid(Context::ConstPtr ctx) {
 BTUGrid BTUGrid::FromOptions(Context::ConstPtr ctx) {
   BTUGrid result(ctx);
 
-  InputOptions opts = process_input_options(ctx->com());
+  InputOptions opts = process_input_options(ctx->com(), ctx->config());
 
   const Logger &log = *ctx->log();
 
@@ -198,7 +198,7 @@ void BedThermalUnit::write_model_state_impl(const PIO &output) const {
   m_bottom_surface_flux.write(output);
 }
 
-std::map<std::string, Diagnostic::Ptr> BedThermalUnit::diagnostics_impl() const {
+DiagnosticList BedThermalUnit::diagnostics_impl() const {
   return {
     {"bheatflx",   Diagnostic::wrap(m_bottom_surface_flux)},
     {"hfgeoubed", Diagnostic::Ptr(new BTU_geothermal_flux_at_ground_level(this))}};

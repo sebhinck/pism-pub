@@ -1,4 +1,4 @@
-// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017 PISM Authors
+// Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018 PISM Authors
 //
 // This file is part of PISM.
 //
@@ -45,7 +45,7 @@ protected:
   virtual void define_model_state_impl(const PIO &output) const;
   virtual void write_model_state_impl(const PIO &output) const;
 
-  virtual std::map<std::string, Diagnostic::Ptr> diagnostics_impl() const;
+  virtual DiagnosticList diagnostics_impl() const;
 
   virtual MaxTimestep max_timestep_impl(double t) const;
   virtual void update_impl(const YieldStressInputs &inputs);
@@ -53,7 +53,7 @@ protected:
   void topg_to_phi(const IceModelVec2S &bed_topography);
   void tauc_to_phi(const IceModelVec2CellType &mask);
 protected:
-  IceModelVec2S m_till_phi, m_tillwat, m_Po;
+  IceModelVec2S m_till_phi;
   hydrology::Hydrology *m_hydrology;
 
   // only allocated and used if basal_yield_stress.add_transportable_water = true
