@@ -476,6 +476,7 @@ static void regrid_vec_generic(const PIO &file, const IceGrid &grid,
                                unsigned int t_start,
                                bool fill_missing,
                                double default_value,
+                               InterpolationType interpolation_type,
                                double *output) {
   const int X = 1, Y = 2, Z = 3; // indices, just for clarity
 
@@ -483,7 +484,7 @@ static void regrid_vec_generic(const PIO &file, const IceGrid &grid,
 
   try {
     grid_info gi(file, variable_name, grid.ctx()->unit_system(), grid.registration());
-    LocalInterpCtx lic(gi, grid, zlevels_out);
+    LocalInterpCtx lic(gi, grid, zlevels_out, interpolation_type);
 
     std::vector<double> &buffer = lic.buffer;
 
@@ -537,12 +538,15 @@ static void regrid_vec_generic(const PIO &file, const IceGrid &grid,
 //! interpolation to put it on the grid defined by "grid" and zlevels_out.
 static void regrid_vec(const PIO &file, const IceGrid &grid, const std::string &var_name,
                        const std::vector<double> &zlevels_out,
-                       unsigned int t_start, double *output) {
+                       unsigned int t_start,
+                       InterpolationType interpolation_type,
+                       double *output) {
   regrid_vec_generic(file, grid,
                      var_name,
                      zlevels_out,
                      t_start,
                      false, 0.0,
+                     interpolation_type,
                      output);
 }
 
@@ -560,12 +564,14 @@ static void regrid_vec_fill_missing(const PIO &file, const IceGrid &grid,
                                     const std::vector<double> &zlevels_out,
                                     unsigned int t_start,
                                     double default_value,
+                                    InterpolationType interpolation_type,
                                     double *output) {
   regrid_vec_generic(file, grid,
                      var_name,
                      zlevels_out,
                      t_start,
                      true, default_value,
+                     interpolation_type,
                      output);
 }
 
@@ -822,14 +828,16 @@ void regrid_spatial_variable(SpatialVariableMetadata &var,
                              const IceGrid& grid, const PIO &file,
                              RegriddingFlag flag, bool report_range,
                              bool allow_extrapolation,
-                             double default_value, double *output) {
+                             double default_value,
+                             InterpolationType interpolation_type,
+                             double *output) {
   unsigned int t_length = file.inq_nrecords(var.get_name(),
                                             var.get_string("standard_name"),
                                             var.unit_system());
 
   regrid_spatial_variable(var, grid, file, t_length - 1, flag,
                           report_range, allow_extrapolation,
-                          default_value, output);
+                          default_value, interpolation_type, output);
 }
 
 static void compute_range(MPI_Comm com, double *data, size_t data_size, double *min, double *max) {
@@ -932,6 +940,7 @@ void regrid_spatial_variable(SpatialVariableMetadata &variable,
                              bool report_range,
                              bool allow_extrapolation,
                              double default_value,
+                             InterpolationType interpolation_type,
                              double *output) {
   const Logger &log = *grid.ctx()->log();
 
@@ -964,9 +973,9 @@ void regrid_spatial_variable(SpatialVariableMetadata &variable,
                   file.inq_filename().c_str());
 
       regrid_vec_fill_missing(file, grid, name_found, levels,
-                              t_start, default_value, output);
+                              t_start, default_value, interpolation_type, output);
     } else {
-      regrid_vec(file, grid, name_found, levels, t_start, output);
+      regrid_vec(file, grid, name_found, levels, t_start, interpolation_type, output);
     }
 
     // Now we need to get the units string from the file and convert

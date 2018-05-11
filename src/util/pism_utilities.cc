@@ -1,4 +1,4 @@
-/* Copyright (C) 2016, 2017 PISM Authors
+/* Copyright (C) 2016, 2017, 2018 PISM Authors
  *
  * This file is part of PISM.
  *
@@ -124,8 +124,8 @@ bool is_increasing(const std::vector<double> &a) {
   return true;
 }
 
-bool set_contains(const std::set<std::string> &S, const std::string &name) {
-  return (S.find(name) != S.end());
+bool member(const std::string &string, const std::set<std::string> &set) {
+  return (set.find(string) != set.end());
 }
 
 void GlobalReduce(MPI_Comm comm, double *local, double *result, int count, MPI_Op op) {
@@ -191,9 +191,11 @@ std::string version() {
   result += buffer;
   result += "\n";
 
+#ifdef PISM_PETSC_CONFIGURE_FLAGS
   snprintf(buffer, sizeof(buffer), "PETSc configure: %s\n",
            PISM_PETSC_CONFIGURE_FLAGS);
   result += buffer;
+#endif
 
   // OpenMPI added MPI_Get_library_version in version 1.7 (relatively recently).
 #ifdef OPEN_MPI

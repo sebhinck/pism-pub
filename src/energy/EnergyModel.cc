@@ -90,6 +90,34 @@ EnergyModelStats& EnergyModelStats::operator+=(const EnergyModelStats &other) {
 }
 
 
+bool marginal(const IceModelVec2S &thickness, int i, int j, double threshold) {
+  int
+    n = j + 1,
+    e = i + 1,
+    s = j - 1,
+    w = i - 1;
+
+  const double
+    N  = thickness(i, n),
+    E  = thickness(e, j),
+    S  = thickness(i, s),
+    W  = thickness(w, j),
+    NW = thickness(w, n),
+    SW = thickness(w, s),
+    NE = thickness(e, n),
+    SE = thickness(e, s);
+
+  return ((E  < threshold) or
+          (NE < threshold) or
+          (N  < threshold) or
+          (NW < threshold) or
+          (W  < threshold) or
+          (SW < threshold) or
+          (S  < threshold) or
+          (SE < threshold));
+}
+
+
 void EnergyModelStats::sum(MPI_Comm com) {
   bulge_counter            = GlobalSum(com, bulge_counter);
   reduced_accuracy_counter = GlobalSum(com, reduced_accuracy_counter);
@@ -211,7 +239,7 @@ void EnergyModel::regrid_enthalpy() {
 
   std::string enthalpy_name = m_ice_enthalpy.metadata().get_name();
 
-  if (not regrid_vars.is_set() or set_contains(regrid_vars, enthalpy_name)) {
+  if (not regrid_vars.is_set() or member(enthalpy_name, regrid_vars)) {
     PIO regrid_file(m_grid->com, "guess_mode", regrid_filename, PISM_READONLY);
     init_enthalpy(regrid_file, true, 0);
   }

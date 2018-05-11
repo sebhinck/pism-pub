@@ -175,9 +175,9 @@ void IceModel::model_state_setup() {
 
   m_sea_level->init(m_geometry);
 
-  // Initialize a bed deformation model. This may use ice thickness initialized above.
+  // Initialize a bed deformation model.
   if (m_beddef) {
-    m_beddef->init(input);
+    m_beddef->init(input, m_geometry.ice_thickness, m_sea_level->elevation());
     m_grid->variables().add(m_beddef->bed_elevation());
     m_grid->variables().add(m_beddef->uplift());
   }
@@ -191,8 +191,8 @@ void IceModel::model_state_setup() {
   // too.
   enforce_consistency_of_geometry(REMOVE_ICEBERGS);
 
-  // By now ice geometry is set and so we can initialize the ocean model, which may need
-  // geometric information (ice thickness, bed elevation, cell type) to bootstrap.
+  // By now ice geometry is set (including regridding) and so we can initialize the ocean model,
+  // which may need ice thickness, bed topography, and the cell type mask.
   {
     m_ocean->init(m_geometry);
   }

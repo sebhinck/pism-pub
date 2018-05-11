@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2017 Jed Brown, Ed Bueler and Constantine Khroulev
+// Copyright (C) 2004-2018 Jed Brown, Ed Bueler and Constantine Khroulev
 //
 // This file is part of PISM.
 //
@@ -103,6 +103,7 @@ void IceModel::update_run_stats() {
   // time-independent info
   {
     m_run_stats.set_string("source", std::string("PISM ") + PISM_Revision);
+    m_run_stats.set_string("long_name", "Run statistics");
   }
 
   m_run_stats.set_double("wall_clock_hours", wall_clock_hours);

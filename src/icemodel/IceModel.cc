@@ -159,7 +159,7 @@ IceModel::IceModel(IceGrid::Ptr g, Context::Ptr context)
   m_vonmises_calving            = nullptr;
   m_frontal_melt                = nullptr;
 
-  m_output_global_attributes.set_string("Conventions", "CF-1.5");
+  m_output_global_attributes.set_string("Conventions", "CF-1.6");
   m_output_global_attributes.set_string("source", pism::version());
 
   // Do not save snapshots by default:
@@ -728,7 +728,9 @@ void IceModel::step(bool do_mass_continuity,
     int topg_state_counter = m_beddef->bed_elevation().state_counter();
 
     profiling.begin("bed_deformation");
-    m_beddef->update(m_geometry.ice_thickness, current_time, m_dt);
+    m_beddef->update(m_geometry.ice_thickness,
+                     m_geometry.sea_level_elevation,
+                     current_time, m_dt);
     profiling.end("bed_deformation");
 
     if (m_beddef->bed_elevation().state_counter() != topg_state_counter) {
