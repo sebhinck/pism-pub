@@ -309,6 +309,8 @@
 
 %include pism_inverse.i
 
+%include pism_atmosphere.i
+
 %include pism_ocean.i
 
 %include pism_surface.i
