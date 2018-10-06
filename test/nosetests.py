@@ -14,12 +14,14 @@ import PISM
 import sys
 import numpy as np
 
+
 def create_dummy_grid():
     "Create a dummy grid"
     ctx = PISM.Context()
     params = PISM.GridParameters(ctx.config)
     params.ownership_ranges_from_options(ctx.size)
     return PISM.IceGrid(ctx.ctx, params)
+
 
 def context_test():
     "Test creating a new PISM context"
@@ -37,6 +39,7 @@ def context_missing_attribute_test():
         return False
     except AttributeError:
         return True
+
 
 def create_grid_test():
     "Test the creation of the IceGrid object"
@@ -447,6 +450,7 @@ def util_test():
 
     print(b.a, b["b"], "b" in b, b)
 
+
 def logging_test():
     "Test the PISM.logging module"
     grid = create_dummy_grid()
@@ -625,6 +629,7 @@ def linear_interpolation_test(plot=False):
 
     assert np.max(np.fabs(F_desired - F_interpolated)) < 1e-16
 
+
 def pism_context_test():
     "Test creating and using a C++-level Context"
 
@@ -649,15 +654,16 @@ def pism_context_test():
     print(PISM.convert(ctx.unit_system(), 1, "km", "m"))
     print(ctx.prefix())
 
+
 def check_flow_law(factory, flow_law_name, EC, stored_data):
     factory.set_default(flow_law_name)
     law = factory.create()
 
     depth = 2000
-    gs    = 1e-3
+    gs = 1e-3
     sigma = [1e4, 5e4, 1e5, 1.5e5]
 
-    T_pa  = [-30, -5, 0, 0]
+    T_pa = [-30, -5, 0, 0]
     omega = [0.0, 0.0, 0.0, 0.005]
 
     assert len(T_pa) == len(omega)
@@ -683,6 +689,7 @@ def check_flow_law(factory, flow_law_name, EC, stored_data):
     data = np.array(data)
 
     assert np.max(np.fabs(data - stored_data)) < 1e-16
+
 
 def flowlaw_test():
     data = {}
@@ -726,111 +733,6 @@ def flowlaw_test():
     for flow_law_name, data in data.items():
         check_flow_law(factory, flow_law_name, EC, np.array(data))
 
-
-def gpbld3_vs_gpbld_test():
-    "Test the optimized version of GPBLD by comparing it to the one that uses libm."
-    ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "GPBLD3_test")
-    EC = ctx.enthalpy_converter()
-    gpbld = PISM.GPBLD("stress_balance.sia.", ctx.config(), EC)
-    gpbld3 = PISM.GPBLD3("stress_balance.sia.", ctx.config(), EC)
-
-    import numpy as np
-    N = 11
-    T_pa = np.linspace(-30, 0, N)
-    depth = np.linspace(0, 4000, N)
-    omega = np.linspace(0, 0.02, N)
-    sigma = [1e4, 5e4, 1e5, 1.5e5]
-
-    gs = 1e-3
-
-    for d in depth:
-        p = EC.pressure(d)
-        Tm = EC.melting_temperature(p)
-        for Tpa in T_pa:
-            T = Tm + Tpa
-            for o in omega:
-                if T >= Tm:
-                    E = EC.enthalpy(T, o, p)
-                else:
-                    E = EC.enthalpy(T, 0.0, p)
-                for s in sigma:
-                    regular = gpbld.flow(s, E, p, gs)
-                    optimized = gpbld3.flow(s, E, p, gs)
-                    assert np.fabs(regular - optimized) / regular < 2e-14
-
-def gpbld3_hardness_test():
-    "Test the hardness implementation in the optimized version of GPBLD."
-    ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "GPBLD3_test")
-    EC = ctx.enthalpy_converter()
-    gpbld = PISM.GPBLD("stress_balance.sia.", ctx.config(), EC)
-    gpbld3 = PISM.GPBLD3("stress_balance.sia.", ctx.config(), EC)
-
-    import numpy as np
-    N = 11
-    T_pa = np.linspace(-30, 0, N)
-    depth = np.linspace(0, 4000, N)
-    omega = np.linspace(0, 0.02, N)
-
-    for d in depth:
-        p = EC.pressure(d)
-        Tm = EC.melting_temperature(p)
-        for Tpa in T_pa:
-            T = Tm + Tpa
-            for o in omega:
-                if T >= Tm:
-                    E = EC.enthalpy(T, o, p)
-                else:
-                    E = EC.enthalpy(T, 0.0, p)
-
-                regular = gpbld.hardness(E, p)
-                optimized = gpbld3.hardness(E, p)
-                assert np.fabs(regular - optimized) / regular < 4e-15
-
-
-def gpbld3_error_report():
-    """Print max. absolute and relative difference between GPBLD and
-    GPBLD3. Uses 101*101*101*101 samples in a "reasonable" range of
-    pressure-adjusted temperatures, depth, water fraction, and
-    effective stress. This takes about 15 minutes to complete.
-    """
-    ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "GPBLD3_test")
-    EC = ctx.enthalpy_converter()
-    gpbld = PISM.GPBLD("stress_balance.sia.", ctx.config(), EC)
-    gpbld3 = PISM.GPBLD3("stress_balance.sia.", ctx.config(), EC)
-
-    import numpy as np
-    N = 31
-    T_pa = np.linspace(-30, 0, N)
-    depth = np.linspace(0, 5000, N)
-    omega = np.linspace(0, 0.02, N)
-    sigma = np.linspace(0, 5e5, N)
-
-    gs = 1e-3
-
-    max_difference = 0.0
-    max_rel_difference = 0.0
-
-    for d in depth:
-        p = EC.pressure(d)
-        Tm = EC.melting_temperature(p)
-        for Tpa in T_pa:
-            T = Tm + Tpa
-            for o in omega:
-                if T >= Tm:
-                    E = EC.enthalpy(T, o, p)
-                else:
-                    E = EC.enthalpy(T, 0.0, p)
-                for s in sigma:
-                    regular = gpbld.flow(s, E, p, gs)
-                    optimized = gpbld3.flow(s, E, p, gs)
-                    max_difference = max(np.fabs(regular - optimized), max_difference)
-                    if regular > 0.0:
-                        max_rel_difference = max(np.fabs(regular - optimized) / regular,
-                                                 max_rel_difference)
-
-    print("%d (%e) samples" % (N**4, N**4))
-    print("max difference", max_difference)
-    print("max relative difference", max_rel_difference)
 
 def ssa_trivial_test():
     "Test the SSA solver using a trivial setup."
@@ -884,6 +786,7 @@ def ssa_trivial_test():
     test_case = TrivialSSARun(Mx, My)
     test_case.run("ssa_trivial.nc")
 
+
 def epsg_test():
     "Test EPSG to CF conversion."
     l = PISM.StringLogger(PISM.PETSc.COMM_WORLD, 2)
@@ -918,6 +821,7 @@ def epsg_test():
     except RuntimeError as e:
         print("invalid codes trigger exceptions: {}".format(e))
 
+
 def regridding_test():
     "Test 2D regridding: same input and target grids."
     import numpy as np
@@ -949,13 +853,14 @@ def regridding_test():
 
     with PISM.vec.Access(nocomm=[thk1, thk2]):
         for (i, j) in grid.points():
-            v1 = thk1[i,j]
-            v2 = thk2[i,j]
+            v1 = thk1[i, j]
+            v2 = thk2[i, j]
             if np.abs(v1 - v2) > 1e-12:
                 raise AssertionError("mismatch at {},{}: {} != {}".format(i, j, v1, v2))
 
     import os
     os.remove("thk1.nc")
+
 
 def netcdf_string_attribute_test():
     "Test reading a NetCDF-4 string attribute."
@@ -1006,12 +911,13 @@ netcdf string_attribute_test {
 
     teardown()
 
+
 def interpolation_weights_test():
     "Test 2D interpolation weights."
 
     def interp2d(grid, F, x, y):
         i_left, i_right, j_bottom, j_top = grid.compute_point_neighbors(x, y)
-        w = grid.compute_interp_weights(x, y);
+        w = grid.compute_interp_weights(x, y)
 
         i = [i_left, i_right, i_right, i_left]
         j = [j_bottom, j_bottom, j_top, j_top]
@@ -1020,7 +926,7 @@ def interpolation_weights_test():
         for k in range(4):
             result += w[k] * F[j[k], i[k]]
 
-        return result;
+        return result
 
     Mx = 100
     My = 200
@@ -1034,7 +940,7 @@ def interpolation_weights_test():
 
     x = grid.x()
     y = grid.y()
-    X,Y = np.meshgrid(x,y)
+    X, Y = np.meshgrid(x, y)
     Z = 2 * X + 3 * Y
 
     N = 1000
@@ -1047,6 +953,7 @@ def interpolation_weights_test():
     result = np.array([interp2d(grid, Z, x_pts[k], y_pts[k]) for k in range(N)])
 
     np.testing.assert_almost_equal(result, exact)
+
 
 def vertical_extrapolation_during_regridding_test():
     "Test extrapolation in the vertical direction"
