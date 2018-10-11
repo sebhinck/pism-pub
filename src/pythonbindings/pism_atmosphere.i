@@ -18,8 +18,13 @@
 %shared_ptr(pism::atmosphere::AtmosphereModel)
 %include "coupler/AtmosphereModel.hh"
 
+%shared_ptr(pism::Diag<pism::atmosphere::AtmosphereModel>)
+%template(_AtmosphereDiag) pism::Diag<pism::atmosphere::AtmosphereModel>;
 
 %shared_ptr(pism::atmosphere::YearlyCycle)
+%shared_ptr(pism::Diag<pism::atmosphere::YearlyCycle>)
+%shared_ptr(pism::atmosphere::PA_mean_july_temp)
+%template(_YearlyCycleDiag) pism::Diag<pism::atmosphere::YearlyCycle>;
 %rename(AtmosphereYearlyCycle) pism::atmosphere::YearlyCycle;
 %include "coupler/atmosphere/YearlyCycle.hh"
   
@@ -51,6 +56,9 @@
 %rename(AtmosphereLapseRates) pism::atmosphere::LapseRates;
 %include "coupler/atmosphere/LapseRates.hh"
 
+%shared_ptr(pism::atmosphere::PA_mean_july_temp_op);
+%shared_ptr(pism::Diag< pism::atmosphere::OrographicPrecipitation >);
+%template(_OrographicDIag) pism::Diag<pism::atmosphere::OrographicPrecipitation>;
 %shared_ptr(pism::atmosphere::OrographicPrecipitation)
 %rename(AtmosphereOrographicPrecipitation) pism::atmosphere::OrographicPrecipitation;
 %include "coupler/atmosphere/OrographicPrecipitation.hh"
