@@ -14,6 +14,7 @@
 #include "coupler/atmosphere/Paleo_precip.hh"
 #include "coupler/atmosphere/SeariseGreenland.hh"
 #include "coupler/atmosphere/WeatherStation.hh"
+#include "coupler/atmosphere/Uniform.hh"
 %}
 
 %shared_ptr(pism::atmosphere::AtmosphereModel)
@@ -57,9 +58,6 @@
 %rename(AtmosphereLapseRates) pism::atmosphere::LapseRates;
 %include "coupler/atmosphere/LapseRates.hh"
 
-%shared_ptr(pism::atmosphere::PA_mean_july_temp_op);
-%shared_ptr(pism::Diag< pism::atmosphere::OrographicPrecipitation >);
-%template(_OrographicDIag) pism::Diag<pism::atmosphere::OrographicPrecipitation>;
 %shared_ptr(pism::atmosphere::OrographicPrecipitation)
 %rename(AtmosphereOrographicPrecipitation) pism::atmosphere::OrographicPrecipitation;
 %include "coupler/atmosphere/OrographicPrecipitation.hh"
@@ -80,6 +78,6 @@
 %rename(AtmosphereWeatherStation) pism::atmosphere::WeatherStation;
 %include "coupler/atmosphere/WeatherStation.hh"
 
-
-
-
+%shared_ptr(pism::atmosphere::Uniform)
+%rename(AtmosphereUniform) pism::atmosphere::Uniform;
+%include "coupler/atmosphere/Uniform.hh"
