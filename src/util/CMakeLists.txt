@@ -48,6 +48,7 @@ set(PISMUTIL_SRC
   petscwrappers/Viewer.cc
   pism_options.cc
   pism_utilities.cc
+  fftw_utilities.cc
   projection.cc
   )
 
