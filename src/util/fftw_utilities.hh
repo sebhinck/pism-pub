@@ -80,7 +80,9 @@ void set_real_part(Vec input,
  */
 void get_real_part(fftw_complex *input,
                    double normalization,
-                   int Mx, int My, int i0, int j0,
+                   int Mx, int My,
+                   int Nx, int Ny,
+                   int i0, int j0,
                    Vec output);
 
 } // end of namespace pism
