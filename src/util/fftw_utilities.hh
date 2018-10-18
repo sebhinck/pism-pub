@@ -53,7 +53,7 @@ public:
   }
 
 private:
-  int m_Mx, m_My, m_i_offset, m_j_offset;
+  const int m_Mx, m_My, m_i_offset, m_j_offset;
   T *m_array;
 };
 
