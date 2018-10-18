@@ -23,6 +23,28 @@
 
 namespace pism {
 
+/*!
+ * Return the Discrete Fourier Transform sample frequencies.
+ */
+std::vector<double> fftfreq(int M, double normalization) {
+  std::vector<double> result(M);
+
+  for (int i = 0; i <= M / 2; i++) {
+    result[i] = i;
+  }
+
+  for (int i = M / 2 + 1; i < M; i++) {
+    result[i] = M - i;
+  }
+
+  // normalize
+  for (int i = 0; i < M; i++) {
+    result[i] *= normalization;
+  }
+
+  return result;
+}
+
 //! \brief Fill `input` with zeros.
 void clear_fftw_array(fftw_complex *input, int Nx, int Ny) {
   VecAccessor2D<fftw_complex> fftw_in(input, Nx, Ny);

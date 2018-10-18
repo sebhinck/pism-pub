@@ -19,6 +19,8 @@
 
 // Utilities for serial models using FFTW and extended computational grids.
 
+#include <vector>
+
 #include <fftw3.h>
 
 #include "pism/util/petscwrappers/Vec.hh"
@@ -54,6 +56,8 @@ private:
   int m_Mx, m_My, m_i_offset, m_j_offset;
   T *m_array;
 };
+
+std::vector<double> fftfreq(int M, double normalization);
 
 //! Fill `input` with zeros.
 void clear_fftw_array(fftw_complex *input, int Nx, int Ny);
