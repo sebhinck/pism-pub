@@ -26,7 +26,7 @@ namespace pism {
 /*!
  * Return the Discrete Fourier Transform sample frequencies.
  */
-std::vector<double> fftfreq(int M, double normalization) {
+std::vector<double> fftfreq(int M, double d) {
   std::vector<double> result(M);
 
   for (int i = 0; i <= M / 2; i++) {
@@ -34,12 +34,12 @@ std::vector<double> fftfreq(int M, double normalization) {
   }
 
   for (int i = M / 2 + 1; i < M; i++) {
-    result[i] = M - i;
+    result[i] = i - M;
   }
 
   // normalize
   for (int i = 0; i < M; i++) {
-    result[i] *= normalization;
+    result[i] /= (M * d);
   }
 
   return result;
