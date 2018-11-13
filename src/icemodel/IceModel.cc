@@ -260,7 +260,6 @@ void IceModel::allocate_storage() {
   m_grid->variables().add(m_geometry.cell_type);
   m_grid->variables().add(m_geometry.longitude);
   m_grid->variables().add(m_geometry.latitude);
-  m_grid->variables().add(m_geometry.cell_area);
 
   if (m_config->get_boolean("geometry.grounded_cell_fraction")) {
     m_grid->variables().add(m_geometry.cell_grounded_fraction);
@@ -432,7 +431,7 @@ energy::Inputs IceModel::energy_model_inputs() {
   result.surface_liquid_fraction  = &m_surface->liquid_water_fraction(); // surface model
   result.surface_temp             = &m_surface->temperature();           // surface model
 
-  result.strain_heating3          = &m_stress_balance->volumetric_strain_heating();
+  result.volumetric_heating_rate  = &m_stress_balance->volumetric_strain_heating();
   result.u3                       = &m_stress_balance->velocity_u();
   result.v3                       = &m_stress_balance->velocity_v();
   result.w3                       = &m_stress_balance->velocity_w();
@@ -704,7 +703,6 @@ void IceModel::step(bool do_mass_continuity,
 
     inputs.no_model_mask      = nullptr;
     inputs.cell_type          = &m_geometry.cell_type;
-    inputs.cell_area          = &m_geometry.cell_area;
     inputs.ice_thickness      = &m_geometry.ice_thickness;
     inputs.bed_elevation      = &m_geometry.bed_elevation;
     inputs.surface_input_rate = nullptr;
@@ -900,12 +898,6 @@ void IceModel::run() {
   } // end of the time-stepping loop
 
   profiling.stage_end("time-stepping loop");
-
-  options::Integer pause_time("-pause", "Pause after the run, seconds", 0);
-  if (pause_time > 0) {
-    m_log->message(2, "pausing for %d secs ...\n", pause_time.value());
-    PetscErrorCode ierr = PetscSleep(pause_time); PISM_CHK(ierr, "PetscSleep");
-  }
 
   if (stepcount >= 0) {
     m_log->message(1,

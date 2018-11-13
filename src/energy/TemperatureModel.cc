@@ -181,11 +181,11 @@ void TemperatureModel::update_impl(double t, double dt, const Inputs &inputs) {
 
   // this is bulge limit constant in K; is max amount by which ice
   //   or bedrock can be lower than surface temperature
-  const double bulge_max  = m_config->get_double("energy.enthalpy_cold_bulge_max") / ice_c;
+  const double bulge_max  = m_config->get_double("energy.enthalpy.cold_bulge_max") / ice_c;
 
   inputs.check();
   const IceModelVec3
-    &strain_heating3 = *inputs.strain_heating3,
+    &strain_heating3 = *inputs.volumetric_heating_rate,
     &u3              = *inputs.u3,
     &v3              = *inputs.v3,
     &w3              = *inputs.w3;
@@ -376,7 +376,7 @@ void TemperatureModel::column_drainage(const double rho, const double c, const d
                                        double *Texcess, double *bwat) const {
 
   const double
-    darea      = m_grid->dx() * m_grid->dy(),
+    darea      = m_grid->cell_area(),
     dvol       = darea * dz,
     dE         = rho * c * (*Texcess) * dvol,
     massmelted = dE / L;

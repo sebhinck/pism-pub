@@ -566,15 +566,17 @@ void SIAFD::compute_diffusivity(bool full_update,
 
   result.set(0.0);
 
-  const double enhancement_factor = m_flow_law->enhancement_factor();
-  const double enhancement_factor_interglacial = m_flow_law->enhancement_factor_interglacial();
+  const double
+    current_time                    = m_grid->ctx()->time()->current(),
+    enhancement_factor              = m_flow_law->enhancement_factor(),
+    enhancement_factor_interglacial = m_flow_law->enhancement_factor_interglacial(),
+    D_limit                         = m_config->get_double("stress_balance.sia.max_diffusivity");
 
-  const bool compute_grain_size_using_age = m_config->get_boolean("stress_balance.sia.grain_size_age_coupling");
-
-  const bool e_age_coupling = m_config->get_boolean("stress_balance.sia.e_age_coupling");
-  const double current_time = m_grid->ctx()->time()->current();
-
-  const bool use_age = compute_grain_size_using_age or e_age_coupling;
+  const bool
+    compute_grain_size_using_age = m_config->get_boolean("stress_balance.sia.grain_size_age_coupling"),
+    e_age_coupling               = m_config->get_boolean("stress_balance.sia.e_age_coupling"),
+    limit_diffusivity            = m_config->get_boolean("stress_balance.sia.limit_diffusivity"),
+    use_age                      = compute_grain_size_using_age or e_age_coupling;
 
   // get "theta" from Schoof (2003) bed smoothness calculation and the
   // thickness relative to the smoothed bed; each IceModelVec2S involved must
@@ -611,10 +613,11 @@ void SIAFD::compute_diffusivity(bool full_update,
 
   std::vector<double> depth(Mz), stress(Mz), pressure(Mz), E(Mz), flow(Mz);
   std::vector<double> delta_ij(Mz);
-  std::vector<double> A(Mz), ice_grain_size(Mz, m_config->get_double("constants.ice.grain_size"));
+  std::vector<double> A(Mz), ice_grain_size(Mz, m_config->get_double("constants.ice.grain_size", "m"));
   std::vector<double> e_factor(Mz, enhancement_factor);
 
   double D_max = 0.0;
+  int high_diffusivity_counter = 0;
   for (int o=0; o<2; o++) {
     ParallelSection loop(m_grid->com);
     try {
@@ -721,6 +724,11 @@ void SIAFD::compute_diffusivity(bool full_update,
           D = 0.0;
         }
 
+        if (limit_diffusivity and D >= D_limit) {
+          D = D_limit;
+          high_diffusivity_counter += 1;
+        }
+
         D_max = std::max(D_max, D);
 
         result(i, j, o) = D;
@@ -741,6 +749,22 @@ void SIAFD::compute_diffusivity(bool full_update,
   } // o-loop
 
   m_D_max = GlobalMax(m_grid->com, D_max);
+
+  high_diffusivity_counter = GlobalSum(m_grid->com, high_diffusivity_counter);
+
+  if (m_D_max > D_limit) {
+
+    throw RuntimeError::formatted(PISM_ERROR_LOCATION,
+                                  "Maximum diffusivity of SIA flow (%f m2/s) is too high.\n"
+                                  "This probably means that the bed elevation or the ice thickness is "
+                                  "too rough.\n"
+                                  "Increase stress_balance.sia.max_diffusivity to suppress this message.", m_D_max);
+
+  } else if (high_diffusivity_counter > 0) {
+
+    m_log->message(2, "  SIA diffusivity was capped at %.2f m2/s at %d locations.\n",
+                   D_limit, high_diffusivity_counter);
+  }
 }
 
 void SIAFD::compute_diffusive_flux(const IceModelVec2Stag &h_x, const IceModelVec2Stag &h_y,

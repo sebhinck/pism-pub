@@ -301,8 +301,9 @@ void GeometryEvolution::flow_step(const Geometry &geometry, double dt,
   }
   m_impl->profile.end("ge.compute_changes");
 
-  // Computes the numerical conservation error and corrects ice_thickness_change and . We can do
-  // this here because compute_surface_and_basal_mass_balance() preserves non-negativity.
+  // Computes the numerical conservation error and corrects ice_thickness_change and
+  // ice_area_specific_volume_change. We can do this here because
+  // compute_surface_and_basal_mass_balance() preserves non-negativity.
   //
   // Note that here we use the "old" ice geometry.
   //
@@ -639,10 +640,6 @@ void GeometryEvolution::compute_interface_fluxes(const IceModelVec2CellType &cel
  * Compute flux divergence using cell interface fluxes on the staggered grid.
  *
  * The flux divergence at *ice thickness* Dirichlet B.C. locations is set to zero.
- *
- * FIXME: This method should also compute the tendency_of_ice_thickness_due_to_influx. In other
- * words, the flux divergence at B.C. locations should be put in a different field so that we can
- * keep track of the mass added or removed by prescribed Dirichlet B.C.
  */
 void GeometryEvolution::compute_flux_divergence(const IceModelVec2Stag &flux,
                                                 const IceModelVec2Int &thickness_bc_mask,
@@ -798,7 +795,7 @@ void GeometryEvolution::update_in_place(double dt,
     if (not done) {
       m_log->message(2,
                      "WARNING: not done redistributing mass after %d iterations, remaining residual: %f m^3.\n",
-                     max_n_iterations, m_impl->residual.sum()*m_grid->dx()*m_grid->dy());
+                     max_n_iterations, m_impl->residual.sum() * m_grid->cell_area());
 
       // Add residual to ice thickness, preserving total ice mass. (This is not great, but
       // better than losing mass.)
@@ -892,7 +889,8 @@ void GeometryEvolution::residual_redistribution_iteration(const IceModelVec2S  &
   // elevation.)
   m_impl->thickness.copy_from(ice_thickness);
 
-  // The loop above updated ice_thickness, so we need to re-calculate the mask and the surface elevation:
+  // The loop above updated ice_thickness, so we need to re-calculate the mask and the
+  // surface elevation:
   m_impl->gc.compute(sea_level, bed_topography, ice_thickness, cell_type, ice_surface_elevation);
 
   double remaining_residual = 0.0;

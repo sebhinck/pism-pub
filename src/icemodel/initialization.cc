@@ -131,8 +131,8 @@ void IceModel::model_state_setup() {
     input_file.reset(new PIO(m_grid->com, "guess_mode", input.filename, PISM_READONLY));
   }
 
-  // Get projection information and compute cell areas and lat/lon *before* a component decides to
-  // use latitude or longitude...
+  // Get projection information and compute latitudes and longitudes *before* a component
+  // decides to use them...
   {
     if (use_input_file) {
       std::string mapping_name = m_grid->get_mapping_info().mapping.get_name();
@@ -153,7 +153,7 @@ void IceModel::model_state_setup() {
 
     }
 
-    compute_cell_areas();
+    compute_lat_lon();
   }
 
   // Initialize 2D fields owned by IceModel (ice geometry, etc)
@@ -231,7 +231,10 @@ void IceModel::model_state_setup() {
   // basal_yield_stress_model->init() needs bwat so this must happen
   // after subglacial_hydrology->init()
   if (m_basal_yield_stress_model) {
-    m_basal_yield_stress_model->init();
+    assert((bool)m_subglacial_hydrology);
+    m_basal_yield_stress_model->init(m_geometry,
+                                     m_subglacial_hydrology->till_water_thickness(),
+                                     m_subglacial_hydrology->overburden_pressure());
   }
 
   // Initialize the bedrock thermal layer model.
@@ -306,10 +309,8 @@ void IceModel::model_state_setup() {
   {
     reset_counters();
 
-    char startstr[TEMPORARY_STRING_LENGTH];
-
-    snprintf(startstr, sizeof(startstr),
-             "PISM (%s) started on %d procs.", PISM_Revision, (int)m_grid->size());
+    auto startstr = pism::printf("PISM (%s) started on %d procs.",
+                                 PISM_Revision, (int)m_grid->size());
     prepend_history(startstr + args_string());
   }
 }
@@ -423,24 +424,20 @@ void IceModel::initialize_2d() {
 //! Manage regridding based on user options.
 void IceModel::regrid() {
 
-  options::String regrid_filename("-regrid_file", "Specifies the file to regrid from");
-
-  options::StringSet regrid_vars("-regrid_vars",
-                                 "Specifies the list of variables to regrid",
-                                 "");
-
+  auto filename    = m_config->get_string("input.regrid.file");
+  auto regrid_vars = set_split(m_config->get_string("input.regrid.vars"), ',');
 
   // Return if no regridding is requested:
-  if (not regrid_filename.is_set()) {
+  if (filename.empty()) {
      return;
   }
 
-  m_log->message(2, "regridding from file %s ...\n",regrid_filename->c_str());
+  m_log->message(2, "regridding from file %s ...\n", filename.c_str());
 
   {
-    PIO regrid_file(m_grid->com, "guess_mode", regrid_filename, PISM_READONLY);
+    PIO regrid_file(m_grid->com, "guess_mode", filename, PISM_READONLY);
     for (auto v : m_model_state) {
-      if (regrid_vars->find(v->get_name()) != regrid_vars->end()) {
+      if (regrid_vars.find(v->get_name()) != regrid_vars.end()) {
         v->regrid(regrid_file, CRITICAL);
       }
     }
@@ -612,8 +609,7 @@ void IceModel::allocate_basal_yield_stress() {
     if (yield_stress_model == "constant") {
       m_basal_yield_stress_model.reset(new ConstantYieldStress(m_grid));
     } else if (yield_stress_model == "mohr_coulomb") {
-      m_basal_yield_stress_model.reset(new MohrCoulombYieldStress(m_grid,
-                                                                  m_subglacial_hydrology.get()));
+      m_basal_yield_stress_model.reset(new MohrCoulombYieldStress(m_grid));
     } else {
       throw RuntimeError::formatted(PISM_ERROR_LOCATION, "yield stress model '%s' is not supported.",
                                     yield_stress_model.c_str());
@@ -976,29 +972,17 @@ std::set<std::string> IceModel::output_variables(const std::string &keyword) {
   return set_split(variables, ',');
 }
 
-void IceModel::compute_cell_areas() {
+void IceModel::compute_lat_lon() {
 
   std::string projection = m_grid->get_mapping_info().proj4;
 
-  if (m_config->get_boolean("grid.correct_cell_areas") and
+  if (m_config->get_boolean("grid.recompute_longitude_and_latitude") and
       not projection.empty()) {
-
-    m_log->message(2,
-                   "* Computing cell areas using projection parameters...\n");
-
-    ::pism::compute_cell_areas(projection, m_geometry.cell_area);
-
     m_log->message(2,
                    "* Computing longitude and latitude using projection parameters...\n");
 
     compute_longitude(projection, m_geometry.longitude);
     compute_latitude(projection, m_geometry.latitude);
-  } else {
-    m_log->message(2,
-                   "* Computing cell areas using grid spacing (dx = %f m, dy = %f m)...\n",
-                   m_grid->dx(), m_grid->dy());
-
-    m_geometry.cell_area.set(m_grid->dx() * m_grid->dy());
   }
 }
 

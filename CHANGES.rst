@@ -3,9 +3,43 @@
 Changes since v1.0
 ==================
 
+- PISM no longer attempts to use projection information to compute cell areas. This change
+  was prompted by better mass accounting: it is now clear that using numerical methods
+  designed for a uniform grid forces us to treat cells are equal in area. We may address
+  this issue later but do not have the resources to work on this topic in the near future.
+  Please use an equal-area projection for your simulations if distortions caused by
+  working in a projected coordinate system are a concern.
+- PISM stops with an error message if the name of a parameter in a `-config_override` file
+  does not match any of the known PISM parameters.
+- PISM stops with an error message if the diffusivity of the SIA flow exceeds a given
+  threshold (see `stress_balance.sia.max_diffusivity`). Extremely high SIA diffusivities
+  often mean that the setup is not "shallow enough"; in a situation like this it might
+  make sense to re-evaluate model parameters before proceeding. (A short "smoothing" run
+  might be helpful, too, if high diffusivities occur at the beginning of a simulation
+  using ice thickness or bed topography not computed by PISM.)
+- The SIA stress balance model limits computed diffusivity at
+  `stress_balance.sia.max_diffusivity` if
+  `stress_balance.sia.limit_diffusivity` is set. This makes it
+  possible to speed up simulations in which high diffusivities at a
+  few isolated grid points force PISM to take very short time steps.
+  *This implies sacrificing accuracy at these grid points. Use with
+  caution!*
+- The SSAFD solver limits ice speed at a threshold specified by
+  `stress_balance.ssa.fd.max_speed`. This may be useful when the computed sliding speed is
+  abnormally high at a few isolated grid points, reducing the length of time steps PISM
+  can take. Capping ice speed makes it possible to ignore troublesome locations and speed
+  up some simulations. The default (50 km/year) is set high enough to deactivate this
+  mechanism.
+- Discard requested snapshot times that are outside of the modeled time interval. (This
+  keeps PISM from overwriting a snapshot file written by one of the previous runs in a
+  re-started simulation.)
+- Add a new configuration parameter `stress_balance.sia.bed_smoother.theta_min` for the
+  bed roughness parameterization in the SIA stress balance model.
 - Added PICO, the *Potsdam Ice-shelf Cavity mOdel* (https://doi.org/10.5194/tc-2017-70).
   Use `-ocean pico` to enable and see the documentation of PISM's `ocean models`_ in the User's
   Manual for details.
+- Added `-ocean ...,anomaly`, an ocean model *modifier* that reads spatially-variable
+  sub-shelf mass flux anomalies from an input file.
 - Exclude ice shelves from the ocean load provided to bed deformation models. See `issue
   363`_.
 - Revert the change from v0.7 to v1.0 in the handling of energy conservation near ice
