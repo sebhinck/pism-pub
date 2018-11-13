@@ -639,10 +639,6 @@ void GeometryEvolution::compute_interface_fluxes(const IceModelVec2CellType &cel
  * Compute flux divergence using cell interface fluxes on the staggered grid.
  *
  * The flux divergence at *ice thickness* Dirichlet B.C. locations is set to zero.
- *
- * FIXME: This method should also compute the tendency_of_ice_thickness_due_to_influx. In other
- * words, the flux divergence at B.C. locations should be put in a different field so that we can
- * keep track of the mass added or removed by prescribed Dirichlet B.C.
  */
 void GeometryEvolution::compute_flux_divergence(const IceModelVec2Stag &flux,
                                                 const IceModelVec2Int &thickness_bc_mask,
@@ -798,7 +794,7 @@ void GeometryEvolution::update_in_place(double dt,
     if (not done) {
       m_log->message(2,
                      "WARNING: not done redistributing mass after %d iterations, remaining residual: %f m^3.\n",
-                     max_n_iterations, m_impl->residual.sum()*m_grid->dx()*m_grid->dy());
+                     max_n_iterations, m_impl->residual.sum() * m_grid->cell_area());
 
       // Add residual to ice thickness, preserving total ice mass. (This is not great, but
       // better than losing mass.)

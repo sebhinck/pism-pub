@@ -102,11 +102,11 @@ Comparing to PISM's energy conservation model
 With default parameter values PISM "ignores" thermal conductivity of temperate ice
 *without* completely removing it: this can be thought of as a *regularization*.
 Specifically, the thermal conductivity of temperate ice is set to a given fraction of
-`k_i` (see ``energy.temperate_ice_enthalpy_conductivity_ratio``).
+`k_i` (see ``energy.enthalpy.temperate_ice_thermal_conductivity_ratio``).
 
-In this one-column setup the ice column remains below the pressure-melting point, so
-setting this parameter to `1` gets us close to the equation modeling |chs| enthalpy
-evolution in *Phillips et al*.
+This one-column setup uses ``energy.ch_warming.temperate_ice_thermal_conductivity_ratio``
+(equal to `1`) to get us close to the equation modeling |chs| enthalpy evolution in
+*Phillips et al*.
 
 Technical details
 -----------------
@@ -151,8 +151,8 @@ the ice:
 .. math::
 
    \begin{aligned}
-     H_{\text{steady\, state}} &= H(T_{\text{steady\, state}}, p)\\
-     T_{\text{steady\, state}} &= (h - z) \frac{G}{k_i}\\
+     H_{\text{steady state}} &= H(T_{\text{steady state}}, p)\\
+     T_{\text{steady state}} &= (h - z) \frac{G}{k_i}\\
    \end{aligned}
 
 where `h` is ice thickness and `p` is the hydrostatic pressure. We assume that the mean

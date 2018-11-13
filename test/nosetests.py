@@ -14,12 +14,14 @@ import PISM
 import sys
 import numpy as np
 
+
 def create_dummy_grid():
     "Create a dummy grid"
     ctx = PISM.Context()
     params = PISM.GridParameters(ctx.config)
     params.ownership_ranges_from_options(ctx.size)
     return PISM.IceGrid(ctx.ctx, params)
+
 
 def context_test():
     "Test creating a new PISM context"
@@ -38,6 +40,7 @@ def context_missing_attribute_test():
     except AttributeError:
         return True
 
+
 def create_grid_test():
     "Test the creation of the IceGrid object"
     grid1 = create_dummy_grid()
@@ -51,8 +54,8 @@ def algorithm_failure_exception_test():
         raise PISM.AlgorithmFailureException("no good reason")
         return False            # should not be reached
     except PISM.AlgorithmFailureException as e:
-        print "calling e.reason(): ", e.reason()
-        print "{}".format(e)
+        print("calling e.reason(): ", e.reason())
+        print("{}".format(e))
         return True
 
 
@@ -83,7 +86,7 @@ def vec_metadata_test():
 
     m.set_string("units", "kg")
 
-    print m.get_string("units")
+    print(m.get_string("units"))
 
 
 def vars_ownership_test():
@@ -91,15 +94,15 @@ def vars_ownership_test():
     grid = create_dummy_grid()
     variables = PISM.Vars()
 
-    print "Adding 'thk'..."
+    print("Adding 'thk'...")
     variables.add(PISM.model.createIceThicknessVec(grid))
-    print "Returned from add_thk()..."
+    print("Returned from add_thk()...")
 
-    print "Getting 'thk' from variables..."
+    print("Getting 'thk' from variables...")
     thk = variables.get("thk")
-    print thk
+    print(thk)
     thk.begin_access()
-    print "thickness at 0,0 is", thk[0, 0]
+    print("thickness at 0,0 is", thk[0, 0])
     thk.end_access()
 
 
@@ -204,8 +207,6 @@ def create_special_vecs_test():
 
     tillphi = PISM.model.createTillPhiVec(grid)
 
-    cell_area = PISM.model.createCellAreaVec(grid)
-
     basal_water = PISM.model.createBasalWaterVec(grid)
 
     gl_mask = PISM.model.createGroundingLineMask(grid)
@@ -238,7 +239,7 @@ def create_special_vecs_test():
 
     vecs.add(mask)
 
-    print vecs
+    print(vecs)
     # test getattr
     vecs.mask
 
@@ -254,8 +255,8 @@ def options_test():
     M = PISM.optionsInt("-M", "description", default=100)
     M = PISM.optionsInt("-M", "description", default=None)
 
-    S = PISM.optionsString("-S", "description", default="string")
-    S = PISM.optionsString("-S", "description", default=None)
+    S = PISM.optionsString("-string", "description", default="string")
+    S = PISM.optionsString("-string", "description", default=None)
 
     R = PISM.optionsReal("-R", "description", default=1.5)
     R = PISM.optionsReal("-R", "description", default=None)
@@ -311,10 +312,10 @@ def pism_vars_test():
     v.add(PISM.model.createIceThicknessVec(grid))
 
     # test getting by short name
-    print v.get("thk").metadata().get_string("units")
+    print(v.get("thk").metadata().get_string("units"))
 
     # test getting by standard name
-    print v.get("land_ice_thickness").metadata().get_string("units")
+    print(v.get("land_ice_thickness").metadata().get_string("units"))
 
 
 def modelvecs_test():
@@ -341,9 +342,9 @@ def modelvecs_test():
         pass
 
     # get a field:
-    print "get() method: ice mask: ", vecs.get("ice_mask").metadata().get_string("long_name")
+    print("get() method: ice mask: ", vecs.get("ice_mask").metadata().get_string("long_name"))
 
-    print "dot notation: ice mask: ", vecs.ice_mask.metadata().get_string("long_name")
+    print("dot notation: ice mask: ", vecs.ice_mask.metadata().get_string("long_name"))
 
     try:
         vecs.invalid
@@ -360,10 +361,10 @@ def modelvecs_test():
         pass
 
     # test __repr__
-    print vecs
+    print(vecs)
 
     # test has()
-    print "Has thickness?", vecs.has("thickness")
+    print("Has thickness?", vecs.has("thickness"))
 
     # test markForWriting
     vecs.markForWriting("ice_mask")
@@ -445,7 +446,7 @@ def util_test():
     b = PISM.util.Bunch(a=1, b="string")
     b.update(c=3.0)
 
-    print b.a, b["b"], b.has_key("b"), b
+    print(b.a, b["b"], "b" in b, b)
 
 
 def logging_test():
@@ -494,7 +495,7 @@ def column_interpolation_test(plot=False):
         "Compute levels of a quadratic coarse grid."
         result = np.zeros(Mz)
         z_lambda = 4.0
-        for k in xrange(Mz - 1):
+        for k in range(Mz - 1):
             zeta = float(k) / (Mz - 1)
             result[k] = Lz * ((zeta / z_lambda) * (1.0 + (z_lambda - 1.0) * zeta))
         result[Mz - 1] = Lz
@@ -517,7 +518,7 @@ def column_interpolation_test(plot=False):
         f_coarse = (z_coarse / Lz) ** 2
         z_fine = fine_grid(z_coarse)
 
-        print "Testing quadratic interpolation"
+        print("Testing quadratic interpolation")
         return test_interp(z_coarse, f_coarse, z_fine, "Quadratic interpolation")
 
     def test_linear_interp():
@@ -525,7 +526,7 @@ def column_interpolation_test(plot=False):
         f_coarse = (z_coarse / Lz) ** 2
         z_fine = fine_grid(z_coarse)
 
-        print "Testing linear interpolation"
+        print("Testing linear interpolation")
         return test_interp(z_coarse, f_coarse, z_fine, "Linear interpolation")
 
     def test_interp(z, f, z_fine, title):
@@ -552,8 +553,8 @@ def column_interpolation_test(plot=False):
 
         delta = np.linalg.norm(f - f_roundtrip, ord=1)
         delta_numpy = np.linalg.norm(f_fine - f_fine_numpy, ord=1)
-        print "norm1(fine_to_coarse(coarse_to_fine(f)) - f) = %f" % delta
-        print "norm1(PISM - NumPy) = %f" % delta_numpy
+        print("norm1(fine_to_coarse(coarse_to_fine(f)) - f) = %f" % delta)
+        print("norm1(PISM - NumPy) = %f" % delta_numpy)
 
         return delta, delta_numpy
 
@@ -626,6 +627,7 @@ def linear_interpolation_test(plot=False):
 
     assert np.max(np.fabs(F_desired - F_interpolated)) < 1e-16
 
+
 def pism_context_test():
     "Test creating and using a C++-level Context"
 
@@ -643,22 +645,23 @@ def pism_context_test():
 
     ctx = PISM.cpp.Context(com, system, config, EC, time, logger, "greenland")
 
-    print ctx.com().Get_size()
-    print ctx.config().get_double("constants.standard_gravity")
-    print ctx.enthalpy_converter().L(273.15)
-    print ctx.time().current()
-    print PISM.convert(ctx.unit_system(), 1, "km", "m")
-    print ctx.prefix()
+    print(ctx.com().Get_size())
+    print(ctx.config().get_double("constants.standard_gravity"))
+    print(ctx.enthalpy_converter().L(273.15))
+    print(ctx.time().current())
+    print(PISM.convert(ctx.unit_system(), 1, "km", "m"))
+    print(ctx.prefix())
+
 
 def check_flow_law(factory, flow_law_name, EC, stored_data):
     factory.set_default(flow_law_name)
     law = factory.create()
 
     depth = 2000
-    gs    = 1e-3
+    gs = 1e-3
     sigma = [1e4, 5e4, 1e5, 1.5e5]
 
-    T_pa  = [-30, -5, 0, 0]
+    T_pa = [-30, -5, 0, 0]
     omega = [0.0, 0.0, 0.0, 0.005]
 
     assert len(T_pa) == len(omega)
@@ -667,9 +670,9 @@ def check_flow_law(factory, flow_law_name, EC, stored_data):
     Tm = EC.melting_temperature(p)
 
     data = []
-    print "  Flow table for %s" % law.name()
-    print "| Sigma        | Temperature  | Omega        | Flow factor  |"
-    print "|--------------+--------------+--------------+--------------|"
+    print("  Flow table for %s" % law.name())
+    print("| Sigma        | Temperature  | Omega        | Flow factor  |")
+    print("|--------------+--------------+--------------+--------------|")
     for S in sigma:
         for Tpa, O in zip(T_pa, omega):
             T = Tm + Tpa
@@ -677,13 +680,14 @@ def check_flow_law(factory, flow_law_name, EC, stored_data):
             F = law.flow(S, E, p, gs)
             data.append(F)
 
-            print "| %e | %e | %e | %e |" % (S, T, O, F)
-    print "|--------------+--------------+--------------+--------------|"
-    print ""
+            print("| %e | %e | %e | %e |" % (S, T, O, F))
+    print("|--------------+--------------+--------------+--------------|")
+    print("")
 
     data = np.array(data)
 
     assert np.max(np.fabs(data - stored_data)) < 1e-16
+
 
 def flowlaw_test():
     data = {}
@@ -695,10 +699,11 @@ def flowlaw_test():
                        3.99496194e-18, 2.60900856e-15, 8.26634991e-15, 8.26634991e-15,
                        1.59798478e-17, 1.04360343e-14, 3.30653997e-14, 3.30653997e-14,
                        3.59546574e-17, 2.34810771e-14, 7.43971492e-14, 7.43971492e-14]
-    data["gk"] = [7.32439717e-17, 5.49629815e-15, 2.41713799e-14, 2.41713799e-14,
-                  2.16360102e-16, 1.93446849e-14, 9.04428380e-14, 9.04428380e-14,
-                  4.06191746e-16, 3.39770143e-14, 1.60574708e-13, 1.60574708e-13,
-                  6.68976826e-16, 4.80704753e-14, 2.27816175e-13, 2.27816175e-13]
+    data["gk"] = [1.1636334595808724e-16, 6.217445758362754e-15, 2.5309103327753672e-14,
+                  2.5309103327753672e-14, 2.5947947614616463e-16, 2.0065832524499375e-14,
+                  9.158056141786197e-14, 9.158056141786197e-14, 4.493111202368685e-16,
+                  3.469816186746473e-14, 1.6171243121742907e-13, 1.6171243121742907e-13,
+                  7.12096200221403e-16, 4.879162291119208e-14, 2.2895389865988545e-13, 2.2895389865988545e-13]
     data["gpbld"] = [4.65791754e-18, 1.45114704e-16, 4.54299921e-16, 8.66009225e-16,
                      1.16447938e-16, 3.62786761e-15, 1.13574980e-14, 2.16502306e-14,
                      4.65791754e-16, 1.45114704e-14, 4.54299921e-14, 8.66009225e-14,
@@ -715,123 +720,14 @@ def flowlaw_test():
                   1.16447938e-16, 3.62786761e-15, 1.13574980e-14, 1.13574980e-14,
                   4.65791754e-16, 1.45114704e-14, 4.54299921e-14, 4.54299921e-14,
                   1.04803145e-15, 3.26508084e-14, 1.02217482e-13, 1.02217482e-13]
-    data["gpbld3"] = [4.65791754e-18, 1.45114704e-16, 4.54299921e-16, 8.66009225e-16,
-                      1.16447938e-16, 3.62786761e-15, 1.13574980e-14, 2.16502306e-14,
-                      4.65791754e-16, 1.45114704e-14, 4.54299921e-14, 8.66009225e-14,
-                      1.04803145e-15, 3.26508084e-14, 1.02217482e-13, 1.94852076e-13]
 
     ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "flowlaw_test")
     EC = ctx.enthalpy_converter()
     factory = PISM.FlowLawFactory("stress_balance.sia.", ctx.config(), EC)
 
-    for flow_law_name, data in data.iteritems():
+    for flow_law_name, data in data.items():
         check_flow_law(factory, flow_law_name, EC, np.array(data))
 
-
-def gpbld3_vs_gpbld_test():
-    "Test the optimized version of GPBLD by comparing it to the one that uses libm."
-    ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "GPBLD3_test")
-    EC = ctx.enthalpy_converter()
-    gpbld = PISM.GPBLD("stress_balance.sia.", ctx.config(), EC)
-    gpbld3 = PISM.GPBLD3("stress_balance.sia.", ctx.config(), EC)
-
-    import numpy as np
-    N = 11
-    T_pa = np.linspace(-30, 0, N)
-    depth = np.linspace(0, 4000, N)
-    omega = np.linspace(0, 0.02, N)
-    sigma = [1e4, 5e4, 1e5, 1.5e5]
-
-    gs = 1e-3
-
-    for d in depth:
-        p = EC.pressure(d)
-        Tm = EC.melting_temperature(p)
-        for Tpa in T_pa:
-            T = Tm + Tpa
-            for o in omega:
-                if T >= Tm:
-                    E = EC.enthalpy(T, o, p)
-                else:
-                    E = EC.enthalpy(T, 0.0, p)
-                for s in sigma:
-                    regular = gpbld.flow(s, E, p, gs)
-                    optimized = gpbld3.flow(s, E, p, gs)
-                    assert np.fabs(regular - optimized) / regular < 2e-14
-
-def gpbld3_hardness_test():
-    "Test the hardness implementation in the optimized version of GPBLD."
-    ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "GPBLD3_test")
-    EC = ctx.enthalpy_converter()
-    gpbld = PISM.GPBLD("stress_balance.sia.", ctx.config(), EC)
-    gpbld3 = PISM.GPBLD3("stress_balance.sia.", ctx.config(), EC)
-
-    import numpy as np
-    N = 11
-    T_pa = np.linspace(-30, 0, N)
-    depth = np.linspace(0, 4000, N)
-    omega = np.linspace(0, 0.02, N)
-
-    for d in depth:
-        p = EC.pressure(d)
-        Tm = EC.melting_temperature(p)
-        for Tpa in T_pa:
-            T = Tm + Tpa
-            for o in omega:
-                if T >= Tm:
-                    E = EC.enthalpy(T, o, p)
-                else:
-                    E = EC.enthalpy(T, 0.0, p)
-
-                regular = gpbld.hardness(E, p)
-                optimized = gpbld3.hardness(E, p)
-                assert np.fabs(regular - optimized) / regular < 4e-15
-
-
-def gpbld3_error_report():
-    """Print max. absolute and relative difference between GPBLD and
-    GPBLD3. Uses 101*101*101*101 samples in a "reasonable" range of
-    pressure-adjusted temperatures, depth, water fraction, and
-    effective stress. This takes about 15 minutes to complete.
-    """
-    ctx = PISM.context_from_options(PISM.PETSc.COMM_WORLD, "GPBLD3_test")
-    EC = ctx.enthalpy_converter()
-    gpbld = PISM.GPBLD("stress_balance.sia.", ctx.config(), EC)
-    gpbld3 = PISM.GPBLD3("stress_balance.sia.", ctx.config(), EC)
-
-    import numpy as np
-    N = 31
-    T_pa = np.linspace(-30, 0, N)
-    depth = np.linspace(0, 5000, N)
-    omega = np.linspace(0, 0.02, N)
-    sigma = np.linspace(0, 5e5, N)
-
-    gs = 1e-3
-
-    max_difference = 0.0
-    max_rel_difference = 0.0
-
-    for d in depth:
-        p = EC.pressure(d)
-        Tm = EC.melting_temperature(p)
-        for Tpa in T_pa:
-            T = Tm + Tpa
-            for o in omega:
-                if T >= Tm:
-                    E = EC.enthalpy(T, o, p)
-                else:
-                    E = EC.enthalpy(T, 0.0, p)
-                for s in sigma:
-                    regular = gpbld.flow(s, E, p, gs)
-                    optimized = gpbld3.flow(s, E, p, gs)
-                    max_difference = max(np.fabs(regular - optimized), max_difference)
-                    if regular > 0.0:
-                        max_rel_difference = max(np.fabs(regular - optimized) / regular,
-                                                 max_rel_difference)
-
-    print "%d (%e) samples" % (N**4, N**4)
-    print "max difference", max_difference
-    print "max relative difference", max_rel_difference
 
 def ssa_trivial_test():
     "Test the SSA solver using a trivial setup."
@@ -885,6 +781,7 @@ def ssa_trivial_test():
     test_case = TrivialSSARun(Mx, My)
     test_case.run("ssa_trivial.nc")
 
+
 def epsg_test():
     "Test EPSG to CF conversion."
     l = PISM.StringLogger(PISM.PETSc.COMM_WORLD, 2)
@@ -892,7 +789,7 @@ def epsg_test():
 
     # test supported EPSG codes
     for code in [3413, 3031]:
-        print "Trying code {}".format(code)
+        print("Trying code {}".format(code))
         l.reset()
         # +init at the beginning
         v = PISM.epsg_to_cf(system, "+init=epsg:%d" % code)
@@ -901,15 +798,15 @@ def epsg_test():
         # +init followed by more options
         v = PISM.epsg_to_cf(system, "+init=epsg:%d +units=m" % code)
         v.report_to_stdout(l, 2)
-        print l.get(),
-        print "done."
+        print(l.get())
+        print("done.")
 
     # test that unsupported codes trigger an exception
     try:
         v = PISM.epsg_to_cf(system, "+init=epsg:3032")
         raise AssertionError("should fail with 3032: only 3413 and 3031 are supported")
     except RuntimeError as e:
-        print "unsupported codes trigger exceptions: {}".format(e)
+        print("unsupported codes trigger exceptions: {}".format(e))
 
     # test that an invalid PROJ.4 string (e.g. an EPSG code is not a
     # number) triggers an exception
@@ -917,7 +814,8 @@ def epsg_test():
         v = PISM.epsg_to_cf(system, "+init=epsg:not-a-number +units=m")
         # raise AssertionError("an invalid PROJ.4 string failed to trigger an exception")
     except RuntimeError as e:
-        print "invalid codes trigger exceptions: {}".format(e)
+        print("invalid codes trigger exceptions: {}".format(e))
+
 
 def regridding_test():
     "Test 2D regridding: same input and target grids."
@@ -950,13 +848,14 @@ def regridding_test():
 
     with PISM.vec.Access(nocomm=[thk1, thk2]):
         for (i, j) in grid.points():
-            v1 = thk1[i,j]
-            v2 = thk2[i,j]
+            v1 = thk1[i, j]
+            v2 = thk2[i, j]
             if np.abs(v1 - v2) > 1e-12:
                 raise AssertionError("mismatch at {},{}: {} != {}".format(i, j, v1, v2))
 
     import os
     os.remove("thk1.nc")
+
 
 def netcdf_string_attribute_test():
     "Test reading a NetCDF-4 string attribute."
@@ -994,9 +893,9 @@ netcdf string_attribute_test {
         read_text = pio.get_att_text("PISM_GLOBAL", "text_attribute")
 
         # check that written and read strings are the same
-        print "written string: '%s'" % attribute
-        print "read string:    '%s'" % read_string
-        print "read text:      '%s'" % read_text
+        print("written string: '%s'" % attribute)
+        print("read string:    '%s'" % read_string)
+        print("read text:      '%s'" % read_text)
         assert read_string == attribute
         assert read_text == attribute
 
@@ -1007,12 +906,13 @@ netcdf string_attribute_test {
 
     teardown()
 
+
 def interpolation_weights_test():
     "Test 2D interpolation weights."
 
     def interp2d(grid, F, x, y):
         i_left, i_right, j_bottom, j_top = grid.compute_point_neighbors(x, y)
-        w = grid.compute_interp_weights(x, y);
+        w = grid.compute_interp_weights(x, y)
 
         i = [i_left, i_right, i_right, i_left]
         j = [j_bottom, j_bottom, j_top, j_top]
@@ -1021,7 +921,7 @@ def interpolation_weights_test():
         for k in range(4):
             result += w[k] * F[j[k], i[k]]
 
-        return result;
+        return result
 
     Mx = 100
     My = 200
@@ -1035,7 +935,7 @@ def interpolation_weights_test():
 
     x = grid.x()
     y = grid.y()
-    X,Y = np.meshgrid(x,y)
+    X, Y = np.meshgrid(x, y)
     Z = 2 * X + 3 * Y
 
     N = 1000
@@ -1048,6 +948,7 @@ def interpolation_weights_test():
     result = np.array([interp2d(grid, Z, x_pts[k], y_pts[k]) for k in range(N)])
 
     np.testing.assert_almost_equal(result, exact)
+
 
 def vertical_extrapolation_during_regridding_test():
     "Test extrapolation in the vertical direction"

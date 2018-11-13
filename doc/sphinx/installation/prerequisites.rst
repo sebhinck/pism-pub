@@ -25,18 +25,19 @@ In particular, if multiple MPI implementations (e.g. MPICH and Open-MPI) are ins
 then PETSc can under some situations "get confused" and throw MPI-related errors. Even
 package systems have been known to allow this confusion.
 
-Optional libraries listed below are needed for certain PISM features, namely cell-area
-correction and parallel I/O. These libraries are recommended, but not strictly required:
+Optional libraries listed below are needed for certain PISM features, namely computing
+longitude, latitude coordinates of grid points and parallel I/O. These libraries are
+recommended, but not strictly required:
 
 .. csv-table::
    :header: Recommended Library, Comment
 
-   PROJ.4_,  Used to compute cell areas and cell bounds
+   PROJ.4_,  Used to compute grid coordinates cell bounds
    PnetCDF_, Can be used for parallel I/O
 
-Python_ is needed both in the PETSc installation process and in scripts related to PISM
-pre- and post-processing, while Git_ is usually needed to download the PISM code. Both
-should be included in any Linux/Unix distribution.
+Python_ 2.x is needed for the PETSc installation process; a number of PISM's pre- and
+post-processing scripts also use Python (either 2.x or 3.x), while Git_ is usually needed
+to download the PISM code.
 
 The following Python packages are needed to do all the examples in the :ref:`User’s Manual
 <sec-users-manual>` (which run Python scripts):

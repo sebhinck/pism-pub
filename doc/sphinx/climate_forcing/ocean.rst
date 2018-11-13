@@ -152,7 +152,7 @@ The main equations reflect the
 #. overturning flux driven by the density difference between open-ocean and grounding-line box,
 #. boundary layer melt formulation.
 
-The PICO model is described in detail in :cite:`ReeseAlbrecht2017`.
+The PICO model is described in detail in :cite:`ReeseAlbrecht2018`.
 
 Inputs are potential temperature (variable :var:`theta_ocean`), salinity (variable
 :var:`salinity_ocean`) and ocean basin mask (variable :var:`basins`). Variables
@@ -296,6 +296,33 @@ It takes the following command-line options:
   model years; see section :ref:`sec-periodic-forcing`.
 - :opt:`-ocean_frac_SMB_reference_year` specifies the reference date; see section
   :ref:`sec-periodic-forcing`.
+
+.. _sec-ocean-anomaly:
+
+Two-dimensional sub-shelf mass flux offsets
++++++++++++++++++++++++++++++++++++++++++++
+
+:|options|: :opt:`-ocean ...,anomaly`
+:|variables|: :var:`shelf_base_mass_flux_anomaly` |flux|
+:|implementation|: ``pism::ocean::Anomaly``
+
+This modifier implements a spatially-variable version of ``-ocean ...,delta_SMB`` which
+applies time-dependent shelf base mass flux anomalies, as used for initMIP or LARMIP
+model intercomparisons.
+
+It takes the following command-line options:
+
+- :opt:`-ocean_anomaly_file` specifies a file containing the variable
+  :var:`shelf_base_mass_flux_anomaly`.
+- :opt:`-ocean_anomaly_period` (years) specifies the period of the forcing data, in
+  model years; see :ref:`sec-periodic-forcing`
+- :opt:`-ocean_anomaly_reference_year` specifies the reference year; see
+  :ref:`sec-periodic-forcing`
+
+  See also to ``-atmosphere ...,anomaly`` or
+  ``-surface ...,anomaly`` (section :ref:`sec-surface-anomaly`)
+  which is similar, but applies anomalies at the atmosphere or surface level,
+  respectively.
 
 .. _sec-ocean-frac-mbp:
 

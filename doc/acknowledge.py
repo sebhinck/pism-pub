@@ -36,7 +36,9 @@ information on additional citations.
 .. code::
 """
 
-import csv, time, sys
+import csv
+import time
+import sys
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -66,6 +68,7 @@ with open("funding.csv", "rb") as f:
             except:
                 funding[agency] = [number]
 
+
 def join(strings):
     assert len(strings) > 0
     if len(strings) == 1:
@@ -76,8 +79,9 @@ def join(strings):
         return join(["{}, {}".format(strings[0], strings[1]),
                      join(strings[2:])])
 
+
 grants = []
-for k, v in funding.iteritems():
+for k, v in funding.items():
     grant = "grant"
     if len(v) > 1:
         grant = "grants"
@@ -87,16 +91,16 @@ for k, v in funding.iteritems():
                                                      number=join(v)))
 
 if options.manual:
-    print header
-    print """
-Development of PISM is supported by {grants}.""".format(grants=join(grants))
+    print(header)
+    print("""
+Development of PISM is supported by {grants}.""".format(grants=join(grants)))
 else:
-    print header
-    print acknowledgement
-    print """
+    print(header)
+    print(acknowledgement)
+    print("""
     Development of PISM is supported by {grants}.
-""".format(grants=join(grants))
-    print citing
+""".format(grants=join(grants)))
+    print(citing)
     with open("citing-pism.bib") as f:
         for line in f:
             sys.stdout.write("   {}".format(line))
