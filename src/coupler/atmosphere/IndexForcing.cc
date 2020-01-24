@@ -30,7 +30,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
 
   m_ice_surface_elevation.create(m_grid, "m_ice_surface_elevation", WITHOUT_GHOSTS);
   m_ice_surface_elevation.set_attrs("internal", "ice surface elevation",
-                                    "meter ", "meter", "", 0);
+                                    "meters", "meters", "", 0);
 
   m_temp_lapse_rate = m_config->get_number("atmosphere.elevation_change.temperature_lapse_rate",
                                            "K / m");
