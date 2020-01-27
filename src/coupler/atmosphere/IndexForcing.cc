@@ -79,7 +79,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       LINEAR);
+                                       PIECEWISE_CONSTANT);
     m_T0->set_attrs("climate_forcing", "air temperature at t0",
                     "Kelvin", "Kelvin", "", 0);
 
@@ -91,7 +91,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       LINEAR);
+                                       PIECEWISE_CONSTANT);
     m_T1->set_attrs("climate_forcing", "air temperature at t1",
                     "Kelvin", "Kelvin", "", 0);
 
@@ -102,7 +102,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       LINEAR);
+                                       PIECEWISE_CONSTANT);
     m_P0->set_attrs("climate_forcing", "precipitation at t0",
                     "kg m-2 second-1", "kg m-2 second-1", "", 0);
 
@@ -113,7 +113,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       LINEAR);
+                                       PIECEWISE_CONSTANT);
     m_P1->set_attrs("climate_forcing", "precipitation at t1",
                     "kg m-2 second-1", "kg m-2 second-1", "", 0);
   }
