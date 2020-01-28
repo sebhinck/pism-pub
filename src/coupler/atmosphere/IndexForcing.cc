@@ -69,7 +69,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
     unsigned int buffer_size = m_config->get_number("input.forcing.buffer_size");
     unsigned int evaluations_per_year = m_config->get_number("input.forcing.evaluations_per_year");
     const bool periodic = true;
-    const InterpolationType interpolation_type = PIECEWISE_CONSTANT;
+    const InterpolationType interpolation_type = LINEAR_PERIODIC;
 
     File file(m_grid->com, filename, PISM_NETCDF3, PISM_READONLY);
 
