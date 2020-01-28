@@ -28,6 +28,8 @@ namespace atmosphere {
 IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
   : AtmosphereModel(grid) {
 
+  m_option = "atmosphere.index";
+
   m_ice_surface_elevation.create(m_grid, "m_ice_surface_elevation", WITHOUT_GHOSTS);
   m_ice_surface_elevation.set_attrs("internal", "ice surface elevation",
                                     "meters", "meters", "", 0);
@@ -35,11 +37,11 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
   m_temp_lapse_rate = m_config->get_number("atmosphere.elevation_change.temperature_lapse_rate",
                                            "K / m");
 
-  m_precip_decay_rate = m_config->get_number("atmosphere.index.precip_dacay_rate",
+  m_precip_decay_rate = m_config->get_number(m_option + ".precip_dacay_rate",
                                              "m-1");
 
-  m_precip_thresh_height = m_config->get_number("atmosphere.index.precip_thresh_height",
-                                             "m");
+  m_precip_thresh_height = m_config->get_number(m_option + ".precip_thresh_height",
+                                                "m");
 
   m_precipitation = allocate_precipitation(grid);
   m_temperature = allocate_temperature(grid);
@@ -55,22 +57,21 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
   m_h1.set_time_independent(true);
 
   m_index.reset(new ScalarForcing(grid->ctx(),
-                                  "atmosphere.index",
+                                  m_option,
                                   "glac_index",
                                   "1",
                                   "1",
                                   "glacial index"));
 
-
-
   {
-    ForcingOptions opt(*m_grid->ctx(), "atmosphere.index");
+    auto filename = m_config->get_string(m_option + ".file");
 
     unsigned int buffer_size = m_config->get_number("input.forcing.buffer_size");
     unsigned int evaluations_per_year = m_config->get_number("input.forcing.evaluations_per_year");
-    bool periodic = opt.period > 0;
+    const bool periodic = true;
+    const InterpolationType interpolation_type = PIECEWISE_CONSTANT;
 
-    File file(m_grid->com, opt.filename, PISM_NETCDF3, PISM_READONLY);
+    File file(m_grid->com, filename, PISM_NETCDF3, PISM_READONLY);
 
     m_T0 = IceModelVec2T::ForcingField(m_grid,
                                        file,
@@ -79,7 +80,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       PIECEWISE_CONSTANT);
+                                       interpolation_type);
     m_T0->set_attrs("climate_forcing", "air temperature at t0",
                     "Kelvin", "Kelvin", "", 0);
 
@@ -91,7 +92,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       PIECEWISE_CONSTANT);
+                                       interpolation_type);
     m_T1->set_attrs("climate_forcing", "air temperature at t1",
                     "Kelvin", "Kelvin", "", 0);
 
@@ -102,7 +103,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       PIECEWISE_CONSTANT);
+                                       interpolation_type);
     m_P0->set_attrs("climate_forcing", "precipitation at t0",
                     "kg m-2 second-1", "kg m-2 second-1", "", 0);
 
@@ -113,7 +114,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
                                        buffer_size,
                                        evaluations_per_year,
                                        periodic,
-                                       PIECEWISE_CONSTANT);
+                                       interpolation_type);
     m_P1->set_attrs("climate_forcing", "precipitation at t1",
                     "kg m-2 second-1", "kg m-2 second-1", "", 0);
   }
@@ -121,35 +122,21 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
 }
 
 void IndexForcing::init_impl(const Geometry &geometry) {
-  {
-    ForcingOptions opt(*m_grid->ctx(), "atmosphere.index");
+  ForcingOptions opt(*m_grid->ctx(), m_option);
 
-    m_log->message(2,
-                  "  initializing %s, %s, %s and %s from forcing file %s...\n",
-                  m_T0->get_name().c_str(),
-                  m_T1->get_name().c_str(),
-                  m_P0->get_name().c_str(),
-                  m_P1->get_name().c_str(),
-                  opt.filename.c_str());
+  m_T0->init(opt.filename, 1, 0.0);
+  m_T1->init(opt.filename, 1, 0.0);
+  m_P0->init(opt.filename, 1, 0.0);
+  m_P1->init(opt.filename, 1, 0.0);
 
-    m_T0->init(opt.filename, 1, 0.0);
-    m_T1->init(opt.filename, 1, 0.0);
-    m_P0->init(opt.filename, 1, 0.0);
-    m_P1->init(opt.filename, 1, 0.0);
+  m_index->init();
 
-    m_log->message(2,
-                  "  reading climate index data from forcing file %s...\n",
-                  opt.filename.c_str());
-
-    m_index->init();
-
-    m_log->message(2,
+  m_log->message(2,
                   "  reading surface elevation at t0 & t1 data from forcing file %s...\n",
                   opt.filename.c_str());
 
-    m_h0.regrid(opt.filename, OPTIONAL, 0);
-    m_h1.regrid(opt.filename, OPTIONAL, 0);
-  }
+  m_h0.regrid(opt.filename, OPTIONAL, 0);
+  m_h1.regrid(opt.filename, OPTIONAL, 0);
 }
 
 
