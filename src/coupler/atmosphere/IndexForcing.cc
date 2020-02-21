@@ -37,7 +37,7 @@ IndexForcing::IndexForcing(IceGrid::ConstPtr grid)
   m_temp_lapse_rate = m_config->get_number("atmosphere.elevation_change.temperature_lapse_rate",
                                            "K / m");
 
-  m_precip_decay_rate = m_config->get_number(m_option + ".precip_dacay_rate",
+  m_precip_decay_rate = m_config->get_number(m_option + ".precip_decay_rate",
                                              "m-1");
 
   m_precip_thresh_height = m_config->get_number(m_option + ".precip_thresh_height",
